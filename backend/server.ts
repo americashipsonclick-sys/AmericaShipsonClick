@@ -1,10 +1,9 @@
 import 'dotenv/config';
 import express from 'express';
 import path from 'path';
-import fs from 'fs';
 import { createServer as createViteServer } from 'vite';
 import { closeDb, db, initDb, pingDb } from '../database';
-import { apiRouter } from './routes';
+import { apiRouter, serveUpload } from './routes';
 
 async function startServer() {
   const app = express();
@@ -46,24 +45,9 @@ async function startServer() {
     next();
   });
 
-  // Serve uploaded documents as downloads, never as live documents.
-  //
-  // These files come from users and are served from the app's own origin, so
-  // rendering them inline would let an uploaded document run script in the
-  // application's security context. `attachment` plus `nosniff` makes the
-  // browser save them instead of interpreting them.
-  const uploadsPath = path.join(process.cwd(), 'uploads');
-  if (!fs.existsSync(uploadsPath)) {
-    fs.mkdirSync(uploadsPath, { recursive: true });
-  }
-  app.use('/uploads', express.static(uploadsPath, {
-    dotfiles: 'deny',
-    index: false,
-    setHeaders: res => {
-      res.setHeader('Content-Disposition', 'attachment');
-      res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
-    }
-  }));
+  // Uploaded documents are stored in Postgres (the container disk is wiped on
+  // every deploy) and served back as downloads.
+  app.get('/uploads/:name', serveUpload);
 
   // Health check (includes a live database round-trip)
   app.get('/api/health', async (req, res) => {

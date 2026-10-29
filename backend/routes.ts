@@ -3,7 +3,6 @@ import bcrypt from 'bcryptjs';
 import { z } from 'zod';
 import multer from 'multer';
 import path from 'path';
-import fs from 'fs';
 import { db, type SessionContext } from '../database';
 import { authenticate, generateToken, requireRole, AuthenticatedRequest } from './auth';
 import { accountLast4, clientIp, newId, sessionContextFor, tokenizeBankAccount } from './security';
@@ -21,12 +20,6 @@ class HttpError extends Error {
   }
 }
 
-// Setup Multer for document upload storage
-const uploadDir = path.join(process.cwd(), 'uploads');
-if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
-}
-
 // Uploaded documents are served back over HTTP, so the filename, the extension,
 // and the content type are all attacker-controlled unless we constrain them.
 const ALLOWED_UPLOAD_TYPES: Record<string, string> = {
@@ -36,18 +29,10 @@ const ALLOWED_UPLOAD_TYPES: Record<string, string> = {
   'application/pdf': '.pdf'
 };
 
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadDir),
-  filename: (req, file, cb) => {
-    // The stored name is generated, never derived from the client's filename:
-    // that removes path traversal, extension smuggling, and name collisions.
-    const ext = ALLOWED_UPLOAD_TYPES[file.mimetype] || '.bin';
-    cb(null, `${newId('doc')}${ext}`);
-  }
-});
-
+// Held in memory only long enough to write to Postgres; the container disk is
+// ephemeral, so files cannot live there.
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024, files: 1 },
   fileFilter: (req, file, cb) => {
     if (!ALLOWED_UPLOAD_TYPES[file.mimetype]) {
@@ -1106,21 +1091,52 @@ apiRouter.post('/uploads/file', authenticate, (req, res) => {
       const status = err instanceof HttpError ? err.status : err.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
       return res.status(status).json({ error: err.message });
     }
-    handleUpload(req, res);
+    handleUpload(req, res).catch(e => sendError(res, e));
   });
 });
 
-function handleUpload(req: Request, res: Response): void {
+async function handleUpload(req: Request, res: Response): Promise<void> {
   if (!req.file) {
     res.status(400).json({ error: 'No file uploaded' });
     return;
   }
-  const fileUrl = `/uploads/${req.file.filename}`;
+  const id = newId('doc');
+  const fileUrl = `/uploads/${id}${ALLOWED_UPLOAD_TYPES[req.file.mimetype] || '.bin'}`;
+  await db.as(sessionContextFor(req as AuthenticatedRequest)).query(
+    'SELECT app_store_upload($1, $2, $3)',
+    [id, req.file.mimetype, req.file.buffer]
+  );
   res.json({
     file_url: fileUrl,
     filename: req.file.originalname,
     size: req.file.size
   });
+}
+
+/**
+ * Serves a stored document as a download, never as a live document: files come
+ * from users and share the app's origin, so inline rendering would let one run
+ * script in the application's context.
+ */
+export async function serveUpload(req: Request, res: Response): Promise<void> {
+  const id = path.parse(req.params.name).name;
+  try {
+    const result = await db.as({ role: 'anon' }).query<{ content_type: string; data: Buffer }>(
+      'SELECT content_type, data FROM app_get_upload($1)',
+      [id]
+    );
+    const file = result.rows[0];
+    if (!file) {
+      res.status(404).json({ error: 'File not found' });
+      return;
+    }
+    res.setHeader('Content-Type', file.content_type);
+    res.setHeader('Content-Disposition', 'attachment');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+    res.send(Buffer.from(file.data));
+  } catch (err) {
+    sendError(res, err);
+  }
 }
 
 // Mock S3 signed URL generator
