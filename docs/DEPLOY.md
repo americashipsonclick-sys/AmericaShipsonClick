@@ -32,7 +32,7 @@ table. Step 1 below creates the runtime role so the app never connects as it.
 console.neon.tech → **New project**:
 
 - Postgres version **16**
-- Region **AWS US West 2 (Oregon)**, next to the Render service in `render.yaml`
+- Region **AWS US East 2 (Ohio)**, next to the Render service in `render.yaml`
 - Database name `asoc`
 
 The free plan suspends the compute when it is idle and wakes it on the next
@@ -62,7 +62,7 @@ Neon → **Connect** → database `asoc`, role `neondb_owner`, **Connection
 pooling off**. Copy the string; it looks like:
 
 ```
-postgresql://neondb_owner:<owner-password>@ep-xxxx.us-west-2.aws.neon.tech/asoc?sslmode=require
+postgresql://neondb_owner:<owner-password>@ep-xxxx.us-east-2.aws.neon.tech/asoc?sslmode=require
 ```
 
 - `DATABASE_ADMIN_URL` is that string as is.

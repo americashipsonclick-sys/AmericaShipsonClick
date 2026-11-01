@@ -22,8 +22,8 @@ services:
     # Free instances spin down after 15 minutes without traffic; the first
     # request after that waits for a cold start.
     plan: free
-    # Keep this next to the Neon project's region (AWS US West 2, Oregon).
-    region: oregon
+    # Keep this next to the Neon project's region (AWS US East 2, Ohio).
+    region: ohio
     # Vite and esbuild are production dependencies so this build works even
     # when NODE_ENV=production skips devDependencies.
     buildCommand: npm ci && npm run build
