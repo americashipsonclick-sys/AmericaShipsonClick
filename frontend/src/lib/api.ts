@@ -189,13 +189,26 @@ export const api = {
     if (filters?.minRate) params.set('minRate', filters.minRate.toString());
     if (filters?.status) params.set('status', filters.status);
 
-    const res = await fetch(`${API_BASE}/loads?${params.toString()}`);
+    const res = await fetch(`${API_BASE}/loads?${params.toString()}`, {
+      headers: getAuthHeaders()
+    });
+    const data = await handleResponse<{ loads: Load[] }>(res);
+    return data.loads;
+  },
+
+  /** The signed-in shipper's own loads, every status. */
+  async getMyLoads(): Promise<Load[]> {
+    const res = await fetch(`${API_BASE}/shipper/loads`, {
+      headers: getAuthHeaders()
+    });
     const data = await handleResponse<{ loads: Load[] }>(res);
     return data.loads;
   },
 
   async getLoad(id: string): Promise<Load> {
-    const res = await fetch(`${API_BASE}/loads/${id}`);
+    const res = await fetch(`${API_BASE}/loads/${id}`, {
+      headers: getAuthHeaders()
+    });
     return handleResponse<Load>(res);
   },
 

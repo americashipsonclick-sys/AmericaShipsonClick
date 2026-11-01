@@ -197,7 +197,7 @@ never from a header or request body.
 
 | Table | Who can read | Who can write |
 | --- | --- | --- |
-| `loads`, `settlements`, `platform_config` | Everyone (this is a public board and a public ledger) | Owning shipper / booked driver / admin |
+| `loads`, `settlements`, `platform_config` | Everyone at the row level (the ledger is public); the API serves the load board to drivers and admins only | Owning shipper / booked driver / admin |
 | `bookings` | The booked driver, the load's shipper, admins | The booked driver, admins |
 | `driver_payment_accounts`, `driver_documents`, `driver_equipment` | The owning driver, admins | The owning driver, enrollment, admins |
 | `users`, `driver_profiles`, `shipper_profiles` | Self, admins, and the pre-auth `auth`/`enrollment` contexts | Enrollment, admins |
@@ -340,8 +340,9 @@ JWT_SECRET="americashipsonclick_secret_jwt_key_2026"
 - `GET /api/auth/me` — Authenticated user details & profile
 
 ### 3. Freight Loads
-- `GET /api/loads` — Search & filter open loads (origin, destination, equipment, min rate)
-- `GET /api/loads/:id` — Load details
+- `GET /api/loads` — Search & filter open loads (origin, destination, equipment, min rate). Drivers and admins only
+- `GET /api/loads/:id` — Load details. Drivers, admins, or the shipper who posted it
+- `GET /api/shipper/loads` — The signed-in shipper's own loads, every status
 - `POST /api/loads` — Shipper posts a new load
 
 ### 4. Bookings & Settlements

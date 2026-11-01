@@ -505,13 +505,17 @@ function geoFromLoadEnd(row: Record<string, unknown>, end: 'origin' | 'dest'): G
 // -------------------------------------------------------------
 // 3. LOADS ENDPOINTS
 // -------------------------------------------------------------
+
+/** The caller's shipper profile id, looked up when an older token lacks it. */
+async function shipperIdFor(req: AuthenticatedRequest): Promise<string | undefined> {
+  if (req.user?.shipperId) return req.user.shipperId;
+  const shp = await scoped(req).query<{ id: string }>('SELECT id FROM shipper_profiles WHERE user_id = $1', [req.user?.id]);
+  return shp.rows[0]?.id;
+}
+
 apiRouter.get('/shipper/locations', authenticate, requireRole('shipper', 'admin'), async (req: AuthenticatedRequest, res) => {
   try {
-    let shipperId = req.user?.shipperId;
-    if (!shipperId) {
-      const shp = await scoped(req).query<{ id: string }>('SELECT id FROM shipper_profiles WHERE user_id = $1', [req.user?.id]);
-      shipperId = shp.rows[0]?.id;
-    }
+    const shipperId = await shipperIdFor(req);
     if (!shipperId) {
       return res.json({ locations: [] as GeoPlace[] });
     }
@@ -543,12 +547,34 @@ apiRouter.get('/shipper/locations', authenticate, requireRole('shipper', 'admin'
   }
 });
 
-apiRouter.get('/loads', async (req, res) => {
+// A shipper's own loads, every status, for the dashboard. The board below is
+// for carriers, so shippers read their loads here instead.
+apiRouter.get('/shipper/loads', authenticate, requireRole('shipper'), async (req: AuthenticatedRequest, res) => {
   try {
-    const { origin, destination, equipment, minRate, status = 'open', page = '1', limit = '50' } = req.query;
+    const shipperId = await shipperIdFor(req);
+    if (!shipperId) return res.json({ loads: [] });
 
-    // Joins the public projection, not shipper_profiles: the board is anonymous
-    // traffic, and that table holds billing contacts behind RLS.
+    const result = await scoped(req, { shipperId }).query(`
+      SELECT * FROM loads
+      WHERE shipper_id = $1
+      ORDER BY created_at DESC
+      LIMIT 100
+    `, [shipperId]);
+    res.json({ loads: result.rows });
+  } catch (err: any) {
+    sendError(res, err);
+  }
+});
+
+// The load board: carriers and admins only. Drivers see open loads; only an
+// admin may ask for other statuses.
+apiRouter.get('/loads', authenticate, requireRole('driver', 'admin'), async (req: AuthenticatedRequest, res) => {
+  try {
+    const { origin, destination, equipment, minRate, page = '1', limit = '50' } = req.query;
+    const status = req.user?.role === 'admin' ? (req.query.status ?? 'open') : 'open';
+
+    // Joins the public projection, not shipper_profiles: that table holds
+    // billing contacts behind RLS.
     let query = `
       SELECT l.*, s.company_name as shipper_name
       FROM loads l
@@ -590,18 +616,22 @@ apiRouter.get('/loads', async (req, res) => {
     params.push(offset);
     query += ` OFFSET $${params.length}`;
 
-    const result = await db.as({ role: 'anon' }).query(query, params);
+    const result = await scoped(req).query(query, params);
     res.json({ loads: result.rows });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 });
 
-apiRouter.get('/loads/:id', async (req, res) => {
+// One load: carriers and admins, or the shipper who posted it. Another
+// shipper's load answers 404 so ids cannot be probed.
+apiRouter.get('/loads/:id', authenticate, requireRole('driver', 'shipper', 'admin'), async (req: AuthenticatedRequest, res) => {
   try {
-    const result = await db.as({ role: 'anon' }).query('SELECT * FROM loads WHERE id = $1', [req.params.id]);
-    if (result.rows.length === 0) return res.status(404).json({ error: 'Load not found' });
-    res.json(result.rows[0]);
+    const result = await scoped(req).query('SELECT * FROM loads WHERE id = $1', [req.params.id]);
+    const load = result.rows[0];
+    const notMine = req.user?.role === 'shipper' && load?.shipper_id !== (await shipperIdFor(req));
+    if (!load || notMine) return res.status(404).json({ error: 'Load not found' });
+    res.json(load);
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
