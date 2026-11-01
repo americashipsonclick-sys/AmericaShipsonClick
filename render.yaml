@@ -4,26 +4,25 @@
 # SPA, so deep links like /loads and the /api routes come from one process.
 # Static hosting cannot run it.
 #
+# PostgreSQL is hosted on Neon, not Render, so this Blueprint creates only the
+# web service. Both connection strings are pasted in from the Neon console.
+#
 # Two database roles, matching database/scripts/postgres-dev.sh:
-#   DATABASE_ADMIN_URL  owner  — migrations only
+#   DATABASE_ADMIN_URL  owner (neondb_owner) — migrations only
 #   DATABASE_URL        asoc_app — runtime, subject to Row-Level Security
 #
 # RLS is enabled but NOT forced (pg_class.relforcerowsecurity = false), so the
 # owner role bypasses every policy. Pointing DATABASE_URL at the owner would
-# silently void the security model. See docs/DEPLOY.md step 3 before deploying.
-
-databases:
-  - name: asoc-postgres
-    databaseName: asoc
-    user: asoc
-    postgresMajorVersion: "16"
-    plan: basic-256mb
+# silently void the security model. See docs/DEPLOY.md step 1 before deploying.
 
 services:
   - type: web
     name: america-ships-on-click
     runtime: node
-    plan: starter
+    # Free instances spin down after 15 minutes without traffic; the first
+    # request after that waits for a cold start.
+    plan: free
+    # Keep this next to the Neon project's region (AWS US West 2, Oregon).
     region: oregon
     # Vite and esbuild are production dependencies so this build works even
     # when NODE_ENV=production skips devDependencies.
@@ -37,13 +36,12 @@ services:
 
       # Owner connection: used only to run migrations at boot, under a
       # pg_advisory_xact_lock so a rolling deploy migrates exactly once.
+      # Set to the Neon connection string for neondb_owner.
       - key: DATABASE_ADMIN_URL
-        fromDatabase:
-          name: asoc-postgres
-          property: connectionString
+        sync: false
 
       # Runtime connection as the least-privilege asoc_app role.
-      # Set manually after running the role provisioning in docs/DEPLOY.md.
+      # Set after creating the role as described in docs/DEPLOY.md.
       - key: DATABASE_URL
         sync: false
 
