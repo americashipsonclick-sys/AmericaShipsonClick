@@ -22,75 +22,80 @@ that split:
   `0002_security.sql` silently stops applying. The app still works. The
   isolation described in `SECURITY.md` is simply gone.
 
-Managed Postgres hands you one role, and it is the owner. Step 3 below creates
-the runtime role so this does not happen.
+Neon's default role, `neondb_owner`, runs the migrations and so owns every
+table. Step 1 below creates the runtime role so the app never connects as it.
 
 ---
 
-## 1. Create the Blueprint
+## 1. Create the database on Neon
 
-Render → **New → Blueprint** → pick this repo. It reads `render.yaml` and
-creates the web service plus a PostgreSQL 16 instance.
+console.neon.tech → **New project**:
 
-If you created a **Web Service** by hand instead of this Blueprint, Render
-defaults to `npm start` with no build. That crashes immediately:
+- Postgres version **16**
+- Region **AWS US East 2 (Ohio)**, next to the Render service in `render.yaml`
+- Database name `asoc`
 
-```
-Error: Cannot find module '/opt/render/project/src/dist/server.cjs'
-```
+The free plan suspends the compute when it is idle and wakes it on the next
+connection, so the first request after a quiet spell is a little slower.
 
-Set **Build Command** to `npm ci && npm run build` and **Start Command** to
-`npm start`. If Build Command is left empty, `postinstall` still compiles on
-Render (`RENDER=true`) during install — before start — so the process can bind
-`$PORT` immediately. Do not compile in `npm start`: Render sends SIGTERM if no
-port is open while Vite is still running.
-
-A Blueprint first deploy can still fail at boot. That is expected: `DATABASE_URL`
-is not set yet, and the role it points to does not exist. Steps 2–4 fix that.
-
-## 2. Set `ADMIN_PASSWORD`
-
-Render → service → **Environment**. Must be 8+ characters and must not be the
-demo password published in this repo; the server refuses to start otherwise.
-
-`JWT_SECRET` and `PAYMENT_TOKEN_SECRET` are generated once by Render and
-persist across deploys. Rotating `JWT_SECRET` invalidates every issued token.
-
-## 3. Create the runtime role
-
-Copy the **External Database URL** from the Render database page, then:
+Generate a password for the runtime role:
 
 ```bash
-psql "<external-database-url>"
+openssl rand -hex 24
 ```
+
+Then, in Neon → **SQL Editor** (database `asoc`, role `neondb_owner`):
 
 ```sql
 -- Migration 0002 creates asoc_app as NOLOGIN with no password, so it cannot be
 -- connected as. Creating it here first means 0002 finds it and only grants
--- privileges. Use a long random password.
-CREATE ROLE asoc_app LOGIN PASSWORD 'replace-with-a-long-random-password';
+-- privileges.
+CREATE ROLE asoc_app LOGIN PASSWORD 'paste-the-generated-password';
 ```
 
-Generate one with:
+Create it with SQL, **not** on Neon's Roles page. Roles made in the console
+are added to `neon_superuser`, which gives them far more than the app needs.
 
-```bash
-head -c 24 /dev/urandom | base64 | tr -d '/+=' | cut -c1-32
-```
+## 2. Copy the two connection strings
 
-## 4. Point `DATABASE_URL` at that role
-
-Take the Internal Database URL, swap in the `asoc_app` credentials, and set it
-in the Render dashboard:
+Neon → **Connect** → database `asoc`, role `neondb_owner`, **Connection
+pooling off**. Copy the string; it looks like:
 
 ```
-postgresql://asoc_app:<password>@<internal-host>/asoc
+postgresql://neondb_owner:<owner-password>@ep-xxxx.us-east-2.aws.neon.tech/asoc?sslmode=require
 ```
 
-Leave `DATABASE_ADMIN_URL` alone — the Blueprint wires it to the owner
-connection automatically, and migrations run under it at boot behind a
-`pg_advisory_xact_lock`, so a rolling deploy migrates exactly once.
+- `DATABASE_ADMIN_URL` is that string as is.
+- `DATABASE_URL` is the same string with `neondb_owner:<owner-password>`
+  replaced by `asoc_app:<the password from step 1>`.
 
-Redeploy. The log should read:
+Migrations run under `DATABASE_ADMIN_URL` at boot behind a
+`pg_advisory_xact_lock`, so a rolling deploy migrates exactly once. The app
+turns on TLS by itself for a remote host like Neon.
+
+## 3. Create the Blueprint
+
+Render → **New → Blueprint** → pick this repo, branch `main`. It reads
+`render.yaml` and creates the web service on the free plan. It asks for the
+values marked `sync: false`:
+
+- `DATABASE_ADMIN_URL` and `DATABASE_URL` from step 2
+- `ADMIN_PASSWORD`: 8+ characters and not the demo password published in this
+  repo; the server refuses to start otherwise
+
+`JWT_SECRET` and `PAYMENT_TOKEN_SECRET` are generated once by Render and
+persist across deploys. Rotating `JWT_SECRET` invalidates every issued token.
+
+If you created a **Web Service** by hand instead of this Blueprint, none of
+`render.yaml` applies: no generated secrets, no `NODE_ENV`, and Render guesses
+the commands (it picks Bun because of `bun.lock`). The server then stops with
+`JWT_SECRET must be set when NODE_ENV=production`. Delete that service and use
+the Blueprint.
+
+Do not compile in `npm start`: Render sends SIGTERM if no port is open while
+Vite is still running. The Blueprint builds with `npm ci && npm run build`.
+
+## 4. Check the deploy log
 
 ```
 [DB] Connected to postgres://.../asoc (driver: postgres)
@@ -111,7 +116,7 @@ Confirm RLS is actually in force — this should return **zero rows**, because
 `asoc_app` may not read another carrier's identity:
 
 ```bash
-psql "postgresql://asoc_app:<password>@<external-host>/asoc" \
+psql "<DATABASE_URL from step 2>" \
   -c "SELECT count(*) FROM driver_profiles;"
 ```
 
