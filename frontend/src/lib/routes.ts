@@ -1,6 +1,7 @@
 import type { MouseEvent } from 'react';
+import type { User, UserRole } from '../types/api';
 
-/** Public, linkable paths. Keep frontend/public/sitemap.xml in step with the indexed ones. */
+/** Linkable paths. Keep frontend/public/sitemap.xml in step with the indexed ones. */
 export const TAB_PATHS: Record<string, string> = {
   home: '/',
   loads: '/loads',
@@ -27,6 +28,22 @@ export function pathFor(tab: string): string {
   return TAB_PATHS[tab] ?? '/';
 }
 
+/**
+ * Tabs only some roles may see. Admins keep every tab because the API lets
+ * them post and book too. Tabs not listed here are open to everyone.
+ */
+export const TAB_ROLES: Record<string, UserRole[]> = {
+  loads: ['driver', 'admin'],
+  shipper: ['shipper', 'admin'],
+  admin: ['admin']
+};
+
+export function canSeeTab(tab: string, user: User | null): boolean {
+  const roles = TAB_ROLES[tab];
+  if (!roles) return true;
+  return !!user && roles.includes(user.role);
+}
+
 /** In-app navigation for real links. Modified clicks still open a new tab. */
 export function followTabLink(event: MouseEvent<HTMLAnchorElement>, go: (tab: string) => void, tab: string) {
   if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey || event.button !== 0) return;
@@ -47,7 +64,7 @@ export const PAGE_META: Record<string, { title: string; description: string; pat
     title: 'Find Loads — America Ships On Click',
     description: 'Open freight on the America Ships On Click board. Filter by lane and equipment, then book direct with the shipper.',
     path: '/loads',
-    robots: 'index,follow'
+    robots: 'noindex,nofollow'
   },
   books: {
     title: 'Open Books Ledger — America Ships On Click',
@@ -65,7 +82,7 @@ export const PAGE_META: Record<string, { title: string; description: string; pat
     title: 'Post a Load — America Ships On Click',
     description: 'Post a load with a live lane quote. The platform fee is shown before the load goes on the board.',
     path: '/post-load',
-    robots: 'index,follow'
+    robots: 'noindex,nofollow'
   },
   dashboard: {
     title: 'Dashboard — America Ships On Click',

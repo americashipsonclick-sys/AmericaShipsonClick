@@ -3,9 +3,12 @@ import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { useRealtimeSettlements } from '../lib/useRealtimeSettlements';
 import { pctLabel, settlementPreview, usd } from '../lib/settlementPreview';
-import { followTabLink } from '../lib/routes';
+import { canSeeTab, followTabLink } from '../lib/routes';
+import { User } from '../types/api';
 
 interface HomeProps {
+  currentUser: User | null;
+  onOpenAuth: () => void;
   setActiveTab: (tab: string) => void;
 }
 
@@ -23,7 +26,7 @@ function formatPaid(n: number): string {
   return usd(n);
 }
 
-export const Home: React.FC<HomeProps> = ({ setActiveTab }) => {
+export const Home: React.FC<HomeProps> = ({ currentUser, onOpenAuth, setActiveTab }) => {
   const { data: totals } = useQuery({
     queryKey: ['settlementTotals'],
     queryFn: () => api.getSettlementTotals(),
@@ -72,13 +75,28 @@ export const Home: React.FC<HomeProps> = ({ setActiveTab }) => {
             </p>
 
             <div className="flex flex-col items-start gap-3 mb-10">
-              <a
-                href="/loads"
-                className="btn primary py-3.5 px-6"
-                onClick={(e) => followTabLink(e, setActiveTab, 'loads')}
-              >
-                Find Loads
-              </a>
+              {/* The main call to action follows the role: drivers book, shippers post. */}
+              {canSeeTab('loads', currentUser) ? (
+                <a
+                  href="/loads"
+                  className="btn primary py-3.5 px-6"
+                  onClick={(e) => followTabLink(e, setActiveTab, 'loads')}
+                >
+                  Find Loads
+                </a>
+              ) : canSeeTab('shipper', currentUser) ? (
+                <a
+                  href="/post-load"
+                  className="btn primary py-3.5 px-6"
+                  onClick={(e) => followTabLink(e, setActiveTab, 'shipper')}
+                >
+                  Post a Load
+                </a>
+              ) : (
+                <button type="button" className="btn primary py-3.5 px-6" onClick={onOpenAuth}>
+                  Get Started
+                </button>
+              )}
               <a
                 href="/books"
                 className="font-mono text-xs font-bold uppercase tracking-widest text-[#0F5132] underline underline-offset-4"

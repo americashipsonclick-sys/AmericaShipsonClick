@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { api } from '../lib/api';
-import { followTabLink, pathFor } from '../lib/routes';
+import { canSeeTab, followTabLink, pathFor } from '../lib/routes';
 import { User } from '../types/api';
 
 interface NavbarProps {
@@ -28,6 +28,8 @@ export const Navbar: React.FC<NavbarProps> = ({
     refetchInterval: 12000
   });
 
+  // Role-limited links (Find Loads, Post Load, Admin) show only to the roles
+  // in TAB_ROLES; their paths stay reachable by URL and gate on role there.
   const navItems = [
     { id: 'home', label: 'Home' },
     { id: 'loads', label: 'Find Loads' },
@@ -35,10 +37,8 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'driver', label: 'Drive With Us' },
     { id: 'shipper', label: 'Post Load' },
     { id: 'dashboard', label: 'Dashboard' },
-    // Only admins see the console link; /admin stays reachable by URL and
-    // gates on role there.
-    ...(currentUser?.role === 'admin' ? [{ id: 'admin', label: 'Admin' }] : [])
-  ];
+    { id: 'admin', label: 'Admin' }
+  ].filter((item) => canSeeTab(item.id, currentUser));
 
   return (
     <header className="sticky top-0 z-50 flex flex-col border-b-2 border-[#14171A]">
