@@ -6,7 +6,7 @@ import type { PlatformConfig } from '../types/api';
  * the post-load calculator, and the homepage receipt cannot drift from it.
  */
 export const DEFAULT_PLATFORM_CONFIG: PlatformConfig = {
-  fee_pct: 0.05,
+  fee_pct: 0.07,
   factor_pct: 0.03,
   broker_comparison_pct: 0.20,
   fuel_rate_per_mile: 0.45

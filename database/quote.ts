@@ -1,7 +1,7 @@
 /**
  * Equipment quote math. Rates come from `equipment_rate_cards`; this module
  * only applies them. The 7% gross markup is the shipper quote adder — it is
- * not the Open Books 5% platform fee.
+ * not the Open Books platform fee (`platform_config.fee_pct`).
  */
 
 export const EQUIPMENT_KEYS = [

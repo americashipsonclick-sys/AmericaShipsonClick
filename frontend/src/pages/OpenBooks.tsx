@@ -189,7 +189,7 @@ export const OpenBooks: React.FC = () => {
                 <th>Route</th>
                 <th>Miles</th>
                 <th>Rate / mi</th>
-                <th>Fee (5%)</th>
+                <th>Platform Fee</th>
                 <th>Fuel Cost</th>
                 <th>Net to Carrier</th>
               </tr>

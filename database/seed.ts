@@ -166,12 +166,12 @@ async function seedHistoricalSettlements(tx: Queryable): Promise<void> {
     { from: 'Harrisburg, PA', to: 'Boston, MA', miles: 370, equip: 'dry_van' }
   ];
 
-  // Seed math mirrors the platform_config defaults applied by migration 0001.
+  // Seed math mirrors the platform_config rows the migrations set.
   const cfgRes = await tx.query<{ key: string; value: string }>('SELECT key, value FROM platform_config');
   const cfg: Record<string, number> = {};
   cfgRes.rows.forEach(r => (cfg[r.key] = parseFloat(r.value)));
 
-  const feePct = cfg['fee_pct'] ?? 0.05;
+  const feePct = cfg['fee_pct'] ?? 0.07;
   const factorPct = cfg['factor_pct'] ?? 0.03;
   const fuelRate = cfg['fuel_rate_per_mile'] ?? 0.45;
 

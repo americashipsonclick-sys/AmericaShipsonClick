@@ -6,7 +6,7 @@
 
 ## 🚀 Architectural Highlights
 
-- **Single Source of Truth for Platform Fees**: Platform fee (5%), quick pay / same-day funding cost (3%), and fuel rates live in the `platform_config` database table and are exposed via `GET /api/config`. The frontend dynamically fetches and applies these rates across the live calculator, load board take-home math, and booking confirmations.
+- **Single Source of Truth for Platform Fees**: Platform fee (7%), quick pay / same-day funding cost (3%), and fuel rates live in the `platform_config` database table and are exposed via `GET /api/config`. The frontend dynamically fetches and applies these rates across the live calculator, load board take-home math, and booking confirmations.
 - **Server-Authoritative Settlement Math**: All fee, gross, fuel, factor, and carrier net calculations are executed server-side upon booking completion. The frontend never computes numbers independently from backend agreement.
 - **Real DB Aggregate View**: Headline stats (Loads Settled, Miles Hauled, Total Paid to Carriers) are computed directly via `settlement_totals_view` SQL query rather than incremented counters to ensure totals never drift from the underlying settlement rows.
 - **Transactional Double-Booking Protection**: Booking an open load runs on a single pooled connection inside one transaction, using explicit row locking (`FOR UPDATE`) and partial unique index constraints (`WHERE status NOT IN ('cancelled')`) to guarantee atomic single-driver bookings.

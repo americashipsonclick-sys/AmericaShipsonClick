@@ -28,9 +28,11 @@ see [What the estimates leave out](#what-the-estimates-leave-out).
 
 ## Where the rates come from
 
-`fee_pct` (0.05), `factor_pct` (0.03), `fuel_rate_per_mile` (0.45), and
+`fee_pct` (0.07), `factor_pct` (0.03), `fuel_rate_per_mile` (0.45), and
 `broker_comparison_pct` (0.20) are rows in `platform_config`, seeded by
 [`0001_initial_schema.sql:171`](../database/migrations/0001_initial_schema.sql).
+`fee_pct` started at 0.05 and was raised to 0.07 by
+[`0021_platform_fee_7pct.sql`](../database/migrations/0021_platform_fee_7pct.sql).
 They are not constants in code, not environment variables, and not duplicated
 per load. Changing the platform fee is an `UPDATE` against one row.
 
@@ -38,14 +40,14 @@ Both the server and the browser read them from the same table — the browser vi
 `GET /api/config` ([`routes.ts:90`](../backend/routes.ts)), the settlement
 path via a direct `SELECT` inside its own transaction
 ([`routes.ts:538`](../backend/routes.ts)). Every read site carries the same
-`?? 0.05` / `?? 0.03` / `?? 0.45` fallbacks, so a missing config row degrades to
+`?? 0.07` / `?? 0.03` / `?? 0.45` fallbacks, so a missing config row degrades to
 the seeded defaults instead of writing `NaN` into the ledger. The fallbacks are
 written out four times across `routes.ts`, `seed.ts`, `FindLoads.tsx`, and
 `PostLoad.tsx`; they agree today, and nothing enforces that they keep agreeing.
 
 `broker_comparison_pct` is the one rate with no consumer. It is seeded, exposed
 by `/api/config`, and typed in `PlatformConfig`, but no page reads it — it exists
-for the "20% broker vs 5% us" comparison the marketing copy makes by hand.
+for the "20% broker vs 7% us" comparison the marketing copy makes by hand.
 
 ## Rates are copied onto the row, not referenced
 
@@ -86,20 +88,20 @@ the ledger:
 
 | Where | Formula | 780 mi @ $2.15 |
 | --- | --- | --- |
-| Load board card ([`FindLoads.tsx:169`](../frontend/src/pages/FindLoads.tsx)) | `gross - fee` | **$1,593.15** |
-| Post-a-load calculator ([`PostLoad.tsx:43`](../frontend/src/pages/PostLoad.tsx)) | `gross - fee - factor` | **$1,593.15** (or $1,542.84 with quick pay) |
-| Settlement ([`routes.ts:555`](../backend/routes.ts)) | `gross - fee - fuel - factor` | **$1,242.15** (or $1,191.84 factored) |
+| Load board card ([`FindLoads.tsx:169`](../frontend/src/pages/FindLoads.tsx)) | `gross - fee` | **$1,559.61** |
+| Post-a-load calculator ([`PostLoad.tsx:43`](../frontend/src/pages/PostLoad.tsx)) | `gross - fee - factor` | **$1,559.61** (or $1,509.30 with quick pay) |
+| Settlement ([`routes.ts:555`](../backend/routes.ts)) | `gross - fee - fuel - factor` | **$1,208.61** (or $1,158.30 factored) |
 
-Neither preview subtracts fuel. On that lane the gap is $351.00 — 22% of the
-figure on the board card, and more than four times the platform fee the card
-draws attention to. A driver books expecting $1,593 and settles at $1,242.
+Neither preview subtracts fuel. On that lane the gap is $351.00 — 23% of the
+figure on the board card, and three times the platform fee the card draws
+attention to. A driver books expecting $1,560 and settles at $1,209.
 
 This is a presentation gap, not a math bug: the ledger row is right, the board
 card is answering a narrower question ("what does the platform keep?") with a
 label that reads like the broader one ("take-home pay"). Whether fuel belongs in
 a driver-facing estimate is a product decision — a carrier who runs a
 $0.38/mile truck is not losing $0.45/mile — but the two figures should not both
-be called take-home. The calculator's copy also promises the 5% fee is the whole
+be called take-home. The calculator's copy also promises the 7% fee is the whole
 story, which the settled row contradicts by three times that amount.
 
 ## The database's own opinion of the arithmetic
@@ -128,8 +130,8 @@ dollars.
 
 ## Amounts are stored unrounded
 
-Nothing rounds to cents before the `INSERT`. `780 * 2.15 * 0.05` is
-`83.85000000000001` in IEEE 754, and the columns are unconstrained `NUMERIC`, so
+Nothing rounds to cents before the `INSERT`. `780 * 2.15 * 0.07` is
+`117.39000000000001` in IEEE 754, and the columns are unconstrained `NUMERIC`, so
 that is what the ledger holds. Every display path applies `.toFixed(2)`, so it
 is invisible in the UI and in the CSV export, and the balance CHECK tolerates it
 by design. It surfaces in two places: raw `SELECT`s against `settlements`, and
