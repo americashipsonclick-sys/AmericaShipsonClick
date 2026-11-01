@@ -6,6 +6,12 @@
       "runtimeExecutable": "npx",
       "runtimeArgs": ["vite", "--port", "5199"],
       "port": 5199
+    },
+    {
+      "name": "app-local-db",
+      "runtimeExecutable": "env",
+      "runtimeArgs": ["DATABASE_URL=", "DATABASE_ADMIN_URL=", "PORT=3100", "npx", "tsx", "backend/server.ts"],
+      "port": 3100
     }
   ]
 }

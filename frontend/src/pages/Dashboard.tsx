@@ -33,10 +33,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onOpenAuth, o
     enabled: !!currentUser && currentUser.role !== 'admin'
   });
 
-  const { data: allLoads = [] } = useQuery({
+  const { data: myLoads = [] } = useQuery({
     queryKey: ['loads', 'mine'],
-    queryFn: () => api.getLoads({ status: 'all' }),
-    enabled: !!currentUser && (currentUser.role === 'shipper' || currentUser.role === 'admin')
+    queryFn: () => api.getMyLoads(),
+    enabled: !!currentUser && currentUser.role === 'shipper'
   });
 
   const completeBookingMutation = useMutation({
@@ -103,7 +103,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onOpenAuth, o
     }
   };
 
-  const myLoads = allLoads.filter((load) => load.shipper_id === currentUser.shipperId);
   const activeBookings = bookings.filter((b) => b.status === 'active');
   const isDriver = currentUser.role === 'driver';
   const isShipper = currentUser.role === 'shipper';

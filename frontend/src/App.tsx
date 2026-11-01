@@ -3,6 +3,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Navbar } from './components/Navbar';
 import { Footer } from './components/Footer';
 import { AuthModal } from './components/AuthModal';
+import { RoleGate } from './components/RoleGate';
 
 import { Home } from './pages/Home';
 import { FindLoads } from './pages/FindLoads';
@@ -18,7 +19,7 @@ import { CookieConsent } from './components/CookieConsent';
 import { api } from './lib/api';
 import { trackPage } from './lib/analytics';
 import { applyPageMeta, PAGE_META, pathFor, tabForPath } from './lib/routes';
-import { User } from './types/api';
+import { User, UserRole } from './types/api';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -32,7 +33,9 @@ const queryClient = new QueryClient({
 export default function App() {
   const [activeTab, setActiveTabState] = useState(() => tabForPath(window.location.pathname));
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [authPending, setAuthPending] = useState(true);
   const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authRole, setAuthRole] = useState<UserRole | undefined>();
 
   // Navigation writes the URL as well as the tab, so Back/Forward and a
   // pasted link both work.
@@ -79,6 +82,8 @@ export default function App() {
       } catch {
         // Token invalid or absent
         setCurrentUser(null);
+      } finally {
+        setAuthPending(false);
       }
     }
     checkAuth();
@@ -93,6 +98,18 @@ export default function App() {
     }
   };
 
+  // Opens sign-in, preset to the account type the visitor came for, if any.
+  const openAuth = (role?: UserRole) => {
+    setAuthRole(role);
+    setAuthModalOpen(true);
+  };
+
+  const handleSwitchRole = (role?: UserRole) => {
+    api.logout();
+    setCurrentUser(null);
+    openAuth(role);
+  };
+
   return (
     <QueryClientProvider client={queryClient}>
       <div className="min-h-screen flex flex-col bg-[#F0EAD8] text-[#22262A] font-sans antialiased">
@@ -101,19 +118,35 @@ export default function App() {
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           currentUser={currentUser}
-          onOpenAuth={() => setAuthModalOpen(true)}
+          onOpenAuth={() => openAuth()}
           onLogout={handleLogout}
         />
 
         {/* Page Content */}
         <main className="flex-1">
-          {activeTab === 'home' && <Home setActiveTab={setActiveTab} />}
-          {activeTab === 'loads' && (
-            <FindLoads
+          {activeTab === 'home' && (
+            <Home
               currentUser={currentUser}
-              onOpenAuth={() => setAuthModalOpen(true)}
+              onOpenAuth={openAuth}
               setActiveTab={setActiveTab}
             />
+          )}
+          {activeTab === 'loads' && (
+            <RoleGate
+              tab="loads"
+              currentUser={currentUser}
+              authPending={authPending}
+              accountLabel="driver"
+              blurb="The load board is for motor carriers booking freight."
+              onOpenAuth={() => openAuth('driver')}
+              onSwitchRole={() => handleSwitchRole('driver')}
+            >
+              <FindLoads
+                currentUser={currentUser}
+                onOpenAuth={() => openAuth()}
+                setActiveTab={setActiveTab}
+              />
+            </RoleGate>
           )}
           {activeTab === 'books' && <OpenBooks />}
           {activeTab === 'driver' && (
@@ -125,32 +158,34 @@ export default function App() {
             />
           )}
           {activeTab === 'shipper' && (
-            <PostLoad
+            <RoleGate
+              tab="shipper"
               currentUser={currentUser}
-              onOpenAuth={() => setAuthModalOpen(true)}
-              setActiveTab={setActiveTab}
-            />
+              authPending={authPending}
+              accountLabel="shipper"
+              blurb="Posting loads is for shipper accounts."
+              onOpenAuth={() => openAuth('shipper')}
+              onSwitchRole={() => handleSwitchRole('shipper')}
+            >
+              <PostLoad
+                currentUser={currentUser}
+                onOpenAuth={() => openAuth()}
+                setActiveTab={setActiveTab}
+              />
+            </RoleGate>
           )}
           {activeTab === 'dashboard' && (
             <Dashboard
               currentUser={currentUser}
-              onOpenAuth={() => setAuthModalOpen(true)}
-              onSwitchRole={() => {
-                api.logout();
-                setCurrentUser(null);
-                setAuthModalOpen(true);
-              }}
+              onOpenAuth={() => openAuth()}
+              onSwitchRole={() => handleSwitchRole()}
             />
           )}
           {activeTab === 'admin' && (
             <Admin
               currentUser={currentUser}
-              onOpenAuth={() => setAuthModalOpen(true)}
-              onSwitchRole={() => {
-                api.logout();
-                setCurrentUser(null);
-                setAuthModalOpen(true);
-              }}
+              onOpenAuth={() => openAuth()}
+              onSwitchRole={() => handleSwitchRole()}
             />
           )}
           {activeTab === 'privacy' && <PrivacyPolicy />}
@@ -159,11 +194,12 @@ export default function App() {
         </main>
 
         {/* Footer */}
-        <Footer setActiveTab={setActiveTab} />
+        <Footer setActiveTab={setActiveTab} currentUser={currentUser} />
 
         {/* Auth Modal */}
         <AuthModal
           isOpen={authModalOpen}
+          role={authRole}
           onClose={() => setAuthModalOpen(false)}
           onSuccess={(user) => setCurrentUser(user)}
         />

@@ -1,12 +1,14 @@
 import React from 'react';
-import { followTabLink } from '../lib/routes';
+import { canSeeTab, followTabLink } from '../lib/routes';
+import { User } from '../types/api';
 
 interface FooterProps {
   setActiveTab: (tab: string) => void;
+  currentUser: User | null;
   feePct?: number;
 }
 
-export const Footer: React.FC<FooterProps> = ({ setActiveTab, feePct = 0.05 }) => {
+export const Footer: React.FC<FooterProps> = ({ setActiveTab, currentUser, feePct = 0.05 }) => {
   return (
     <footer className="bg-[#14171A] text-[#F0EAD8] py-12 text-[0.85rem] border-t-4 border-[#14171A]">
       <div className="max-w-295 mx-auto px-6">
@@ -24,7 +26,9 @@ export const Footer: React.FC<FooterProps> = ({ setActiveTab, feePct = 0.05 }) =
               Platform Navigation
             </h4>
             <ul className="list-none p-0 m-0 space-y-2 font-mono text-xs">
-              <li><a href="/loads" onClick={(e) => followTabLink(e, setActiveTab, 'loads')} className="text-[#C4BEB0] hover:text-[#E3A008] hover:underline">Find Loads</a></li>
+              {canSeeTab('loads', currentUser) && (
+                <li><a href="/loads" onClick={(e) => followTabLink(e, setActiveTab, 'loads')} className="text-[#C4BEB0] hover:text-[#E3A008] hover:underline">Find Loads</a></li>
+              )}
               <li><a href="/books" onClick={(e) => followTabLink(e, setActiveTab, 'books')} className="text-[#C4BEB0] hover:text-[#E3A008] hover:underline">Open Books Ledger</a></li>
               <li><a href="/dashboard" onClick={(e) => followTabLink(e, setActiveTab, 'dashboard')} className="text-[#C4BEB0] hover:text-[#E3A008] hover:underline">Dashboard</a></li>
             </ul>
@@ -35,7 +39,9 @@ export const Footer: React.FC<FooterProps> = ({ setActiveTab, feePct = 0.05 }) =
             </h4>
             <ul className="list-none p-0 m-0 space-y-2 font-mono text-xs">
               <li><a href="/drive" onClick={(e) => followTabLink(e, setActiveTab, 'driver')} className="text-[#C4BEB0] hover:text-[#E3A008] hover:underline">Drive With Us</a></li>
-              <li><a href="/post-load" onClick={(e) => followTabLink(e, setActiveTab, 'shipper')} className="text-[#C4BEB0] hover:text-[#E3A008] hover:underline">Post a Load</a></li>
+              {canSeeTab('shipper', currentUser) && (
+                <li><a href="/post-load" onClick={(e) => followTabLink(e, setActiveTab, 'shipper')} className="text-[#C4BEB0] hover:text-[#E3A008] hover:underline">Post a Load</a></li>
+              )}
               <li><a href="/privacy" onClick={(e) => followTabLink(e, setActiveTab, 'privacy')} className="text-[#C4BEB0] hover:text-[#E3A008] hover:underline">Privacy Policy</a></li>
               <li><a href="/terms" onClick={(e) => followTabLink(e, setActiveTab, 'terms')} className="text-[#C4BEB0] hover:text-[#E3A008] hover:underline">Terms of Use</a></li>
             </ul>

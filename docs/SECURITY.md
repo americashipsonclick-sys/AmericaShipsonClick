@@ -67,7 +67,7 @@ Seven roles exist, and four of them are not users:
 
 | Context | When | Exists because |
 | --- | --- | --- |
-| `anon` | Public reads — the load board, the ledger, `/api/config` | Unauthenticated visitors are a first-class caller here, not an error |
+| `anon` | Public reads — the ledger, `/api/config` | Unauthenticated visitors are a first-class caller here, not an error |
 | `auth` | Inside `POST /auth/login` only | Checking a password requires reading a `users` row *before* any identity exists |
 | `enrollment` | Inside `POST /auth/signup` only | Creating an account requires inserting rows before an identity exists |
 | `webhook` | Chain-indexer ingest after the route verifies the vendor signature | Phase 1 mint / stake / bonus events must be writable without a user JWT |
@@ -92,8 +92,15 @@ declaring who you are.
 Read policies as answers to "who is this row about?"
 
 **Public by design.** `loads`, `settlements`, and `platform_config` are
-`USING (true)` for `SELECT`. This is a public board and a public ledger; hiding
-them would defeat the product. Writes are scoped normally.
+`USING (true)` for `SELECT`. The ledger is public, and it joins settlements to
+their loads; hiding those rows would defeat the product. Writes are scoped
+normally.
+
+The load board itself is narrower than the policy. `GET /api/loads` requires a
+driver or admin token, and drivers only get open loads; a shipper reads their
+own loads through `GET /api/shipper/loads`. That limit lives in the routes
+(`requireRole`), not in RLS, because the ledger still needs every settled
+load's row.
 
 **Self, or admin.** `users`, `driver_profiles`, `shipper_profiles` are readable
 by the row's own user, by an admin, and by the pre-auth contexts.
