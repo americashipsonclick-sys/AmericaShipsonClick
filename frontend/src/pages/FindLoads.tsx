@@ -4,7 +4,7 @@ import { LoadBoardMap } from '../components/LoadBoardMap';
 import { api } from '../lib/api';
 import { lanePlace } from '../lib/laneCoords';
 import { Load, User } from '../types/api';
-import { pctLabel, settlementPreview, usd } from '../lib/settlementPreview';
+import { pctLabel, settlementPreview, usd, withConfigDefaults } from '../lib/settlementPreview';
 
 interface FindLoadsProps {
   currentUser: User | null;
@@ -105,7 +105,7 @@ export const FindLoads: React.FC<FindLoadsProps> = ({ currentUser, onOpenAuth, s
         <span className="eyebrow block mb-1">Find Freight</span>
         <h2 className="text-3xl sm:text-4xl mb-2">Available Load Board</h2>
         <p className="text-[#5B6168] font-sans text-xs sm:text-sm mb-8">
-          Open loads plot on the map at the pickup the shipper dropped. Tap a mile pin to see the dock, the drop, and the lane. Filter by address, street, ZIP, city, or equipment. Ledger net is the same math Open Books will publish: gross minus the {config ? pctLabel(config.fee_pct) : '5%'} platform fee, modeled fuel, and optional same-day factor.
+          Open loads plot on the map at the pickup the shipper dropped. Tap a mile pin to see the dock, the drop, and the lane. Filter by address, street, ZIP, city, or equipment. Ledger net is the same math Open Books will publish: gross minus the {pctLabel(withConfigDefaults(config).fee_pct)} platform fee, modeled fuel, and optional same-day factor.
         </p>
 
         {/* Tactile Filter Bar */}

@@ -420,7 +420,7 @@ export const PostLoad: React.FC<PostLoadProps> = ({ currentUser, onOpenAuth, set
                   </span>
                 </div>
                 <div className="flex justify-between pt-2 text-[#C9CDD1]">
-                  <span>Ledger net after 5% fee:</span>
+                  <span>Ledger net after {pctLabel(preview.feePct)} fee:</span>
                   <span>{usd(preview.net)}</span>
                 </div>
               </div>
@@ -431,7 +431,7 @@ export const PostLoad: React.FC<PostLoadProps> = ({ currentUser, onOpenAuth, set
             )}
 
             <div className="mt-4 text-[0.78rem] font-mono text-[#C9CDD1] leading-relaxed">
-              Diesel is a live index (now ${Number(catalog?.diesel_ppg ?? 0).toFixed(2)}/gal). The accepted total is logged so the table can be tuned later. Open Books still takes 5% of posted gross.
+              Diesel is a live index (now ${Number(catalog?.diesel_ppg ?? 0).toFixed(2)}/gal). The accepted total is logged so the table can be tuned later. Open Books takes {pctLabel(preview.feePct)} of posted gross.
             </div>
           </div>
         </div>

@@ -126,7 +126,7 @@ apiRouter.get('/config', async (req, res) => {
     });
 
     res.json({
-      fee_pct: configMap['fee_pct'] ?? 0.05,
+      fee_pct: configMap['fee_pct'] ?? 0.07,
       factor_pct: configMap['factor_pct'] ?? 0.03,
       broker_comparison_pct: configMap['broker_comparison_pct'] ?? 0.20,
       fuel_rate_per_mile: configMap['fuel_rate_per_mile'] ?? 0.45,
@@ -892,7 +892,7 @@ apiRouter.patch('/bookings/:id/complete', authenticate, async (req: Authenticate
       const cfg: Record<string, number> = {};
       cfgRes.rows.forEach(r => cfg[r.key] = parseFloat(r.value));
 
-      const feePct = cfg['fee_pct'] ?? 0.05;
+      const feePct = cfg['fee_pct'] ?? 0.07;
       const factorPct = cfg['factor_pct'] ?? 0.03;
       const fuelRate = cfg['fuel_rate_per_mile'] ?? 0.45;
 

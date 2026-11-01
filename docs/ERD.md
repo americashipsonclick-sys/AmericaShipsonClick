@@ -175,7 +175,7 @@ Per unit of volume the database will accept:
 | Transaction reserve | 10% | `reserve_amount = volume × 0.10` |
 | Holder pool (from that reserve) | 0.7% of volume | `holder_slice = reserve_amount × 0.07` — the only money hourly claims may draw |
 | Remainder of reserve | 9.3% of volume | Not a holder reward. Not mixed into driver USDC payouts. |
-| Open Books platform fee | 5% of gross | Separate pipe. Unchanged. `settlements.fee_pct_applied`. |
+| Open Books platform fee | 7% of gross | Separate pipe. `settlements.fee_pct_applied`. |
 | Driver payout | settlement net | USDC on Base. `driver_payouts`. Never the holder pool. |
 
 Hourly bonus weights: regular = 1× staked balance, premium = 5× instead (never 6×). If the sum of naive claims exceeds that hour's `holder_pool`, each claim is multiplied by `haircut_ratio ≤ 1`. The insert trigger refuses any claim that would push `sum(paid_amount)` over the pool.
