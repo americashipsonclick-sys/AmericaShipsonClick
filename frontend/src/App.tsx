@@ -19,7 +19,7 @@ import { CookieConsent } from './components/CookieConsent';
 import { api } from './lib/api';
 import { trackPage } from './lib/analytics';
 import { applyPageMeta, PAGE_META, pathFor, tabForPath } from './lib/routes';
-import { User } from './types/api';
+import { User, UserRole } from './types/api';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -35,6 +35,7 @@ export default function App() {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authPending, setAuthPending] = useState(true);
   const [authModalOpen, setAuthModalOpen] = useState(false);
+  const [authRole, setAuthRole] = useState<UserRole | undefined>();
 
   // Navigation writes the URL as well as the tab, so Back/Forward and a
   // pasted link both work.
@@ -97,10 +98,16 @@ export default function App() {
     }
   };
 
-  const handleSwitchRole = () => {
+  // Opens sign-in, preset to the account type the visitor came for, if any.
+  const openAuth = (role?: UserRole) => {
+    setAuthRole(role);
+    setAuthModalOpen(true);
+  };
+
+  const handleSwitchRole = (role?: UserRole) => {
     api.logout();
     setCurrentUser(null);
-    setAuthModalOpen(true);
+    openAuth(role);
   };
 
   return (
@@ -111,7 +118,7 @@ export default function App() {
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           currentUser={currentUser}
-          onOpenAuth={() => setAuthModalOpen(true)}
+          onOpenAuth={() => openAuth()}
           onLogout={handleLogout}
         />
 
@@ -120,7 +127,7 @@ export default function App() {
           {activeTab === 'home' && (
             <Home
               currentUser={currentUser}
-              onOpenAuth={() => setAuthModalOpen(true)}
+              onOpenAuth={openAuth}
               setActiveTab={setActiveTab}
             />
           )}
@@ -131,12 +138,12 @@ export default function App() {
               authPending={authPending}
               accountLabel="driver"
               blurb="The load board is for motor carriers booking freight."
-              onOpenAuth={() => setAuthModalOpen(true)}
-              onSwitchRole={handleSwitchRole}
+              onOpenAuth={() => openAuth('driver')}
+              onSwitchRole={() => handleSwitchRole('driver')}
             >
               <FindLoads
                 currentUser={currentUser}
-                onOpenAuth={() => setAuthModalOpen(true)}
+                onOpenAuth={() => openAuth()}
                 setActiveTab={setActiveTab}
               />
             </RoleGate>
@@ -157,12 +164,12 @@ export default function App() {
               authPending={authPending}
               accountLabel="shipper"
               blurb="Posting loads is for shipper accounts."
-              onOpenAuth={() => setAuthModalOpen(true)}
-              onSwitchRole={handleSwitchRole}
+              onOpenAuth={() => openAuth('shipper')}
+              onSwitchRole={() => handleSwitchRole('shipper')}
             >
               <PostLoad
                 currentUser={currentUser}
-                onOpenAuth={() => setAuthModalOpen(true)}
+                onOpenAuth={() => openAuth()}
                 setActiveTab={setActiveTab}
               />
             </RoleGate>
@@ -170,15 +177,15 @@ export default function App() {
           {activeTab === 'dashboard' && (
             <Dashboard
               currentUser={currentUser}
-              onOpenAuth={() => setAuthModalOpen(true)}
-              onSwitchRole={handleSwitchRole}
+              onOpenAuth={() => openAuth()}
+              onSwitchRole={() => handleSwitchRole()}
             />
           )}
           {activeTab === 'admin' && (
             <Admin
               currentUser={currentUser}
-              onOpenAuth={() => setAuthModalOpen(true)}
-              onSwitchRole={handleSwitchRole}
+              onOpenAuth={() => openAuth()}
+              onSwitchRole={() => handleSwitchRole()}
             />
           )}
           {activeTab === 'privacy' && <PrivacyPolicy />}
@@ -192,6 +199,7 @@ export default function App() {
         {/* Auth Modal */}
         <AuthModal
           isOpen={authModalOpen}
+          role={authRole}
           onClose={() => setAuthModalOpen(false)}
           onSuccess={(user) => setCurrentUser(user)}
         />

@@ -6,9 +6,16 @@ interface AuthModalProps {
   isOpen: boolean;
   onClose: () => void;
   onSuccess: (user: User) => void;
+  /** The account type the visitor came for, e.g. shipper from Post a Load. Presets sign-up and the heading. */
+  role?: UserRole;
 }
 
-export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess }) => {
+const ROLE_COPY: Partial<Record<UserRole, { label: string; purpose: string }>> = {
+  driver: { label: 'Driver', purpose: 'book loads' },
+  shipper: { label: 'Shipper', purpose: 'post loads' }
+};
+
+export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess, role: presetRole }) => {
   const [isSignup, setIsSignup] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -20,6 +27,10 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
+    if (isOpen && presetRole) setRole(presetRole);
+  }, [isOpen, presetRole]);
+
+  useEffect(() => {
     if (!isOpen) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') onClose();
@@ -29,6 +40,8 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
   }, [isOpen, onClose]);
 
   if (!isOpen) return null;
+
+  const roleCopy = presetRole ? ROLE_COPY[presetRole] : undefined;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -112,8 +125,15 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
           {isSignup ? 'Create Account' : 'Sign In'}
         </span>
         <h3 className="text-xl font-display-title mb-4">
-          {isSignup ? 'Join America Ships On Click' : 'Welcome Back'}
+          {roleCopy
+            ? (isSignup ? `Register as a ${roleCopy.label}` : `${roleCopy.label} Sign In`)
+            : (isSignup ? 'Join America Ships On Click' : 'Welcome Back')}
         </h3>
+        {roleCopy && (
+          <p className="text-[#5B6168] text-sm -mt-2 mb-4">
+            Sign in to {roleCopy.purpose}, or create a {roleCopy.label.toLowerCase()} account.
+          </p>
+        )}
 
         {import.meta.env.DEV && (
         <div className="bg-[#F0EAD8] p-3 rounded border border-[#E4DCC4] mb-4">
@@ -248,7 +268,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
             onClick={() => { setIsSignup(!isSignup); setError(null); }}
             className="text-xs font-mono text-[#0F5132] hover:underline bg-transparent border-none cursor-pointer"
           >
-            {isSignup ? 'Already have an account? Sign In' : 'Need an account? Sign Up'}
+            {isSignup
+              ? 'Already have an account? Sign In'
+              : roleCopy ? `New ${roleCopy.label.toLowerCase()}? Create an account` : 'Need an account? Sign Up'}
           </button>
         </div>
       </div>

@@ -4,11 +4,11 @@ import { api } from '../lib/api';
 import { useRealtimeSettlements } from '../lib/useRealtimeSettlements';
 import { pctLabel, settlementPreview, usd } from '../lib/settlementPreview';
 import { canSeeTab, followTabLink } from '../lib/routes';
-import { User } from '../types/api';
+import { User, UserRole } from '../types/api';
 
 interface HomeProps {
   currentUser: User | null;
-  onOpenAuth: () => void;
+  onOpenAuth: (role?: UserRole) => void;
   setActiveTab: (tab: string) => void;
 }
 
@@ -27,6 +27,13 @@ function formatPaid(n: number): string {
 }
 
 export const Home: React.FC<HomeProps> = ({ currentUser, onOpenAuth, setActiveTab }) => {
+  // A signed-out visitor lands on the page with sign-in already open for that
+  // role, so signing in or registering drops them straight into it.
+  const openPage = (e: React.MouseEvent<HTMLAnchorElement>, tab: string, role: UserRole) => {
+    followTabLink(e, setActiveTab, tab);
+    if (e.defaultPrevented && !currentUser) onOpenAuth(role);
+  };
+
   const { data: totals } = useQuery({
     queryKey: ['settlementTotals'],
     queryFn: () => api.getSettlementTotals(),
@@ -75,28 +82,27 @@ export const Home: React.FC<HomeProps> = ({ currentUser, onOpenAuth, setActiveTa
             </p>
 
             <div className="flex flex-col items-start gap-3 mb-10">
-              {/* The main call to action follows the role: drivers book, shippers post. */}
-              {canSeeTab('loads', currentUser) ? (
-                <a
-                  href="/loads"
-                  className="btn primary py-3.5 px-6"
-                  onClick={(e) => followTabLink(e, setActiveTab, 'loads')}
-                >
-                  Find Loads
-                </a>
-              ) : canSeeTab('shipper', currentUser) ? (
-                <a
-                  href="/post-load"
-                  className="btn primary py-3.5 px-6"
-                  onClick={(e) => followTabLink(e, setActiveTab, 'shipper')}
-                >
-                  Post a Load
-                </a>
-              ) : (
-                <button type="button" className="btn primary py-3.5 px-6" onClick={onOpenAuth}>
-                  Get Started
-                </button>
-              )}
+              {/* Signed out, both show; signed in, only the role's own page. */}
+              <div className="flex flex-wrap gap-3">
+                {(!currentUser || canSeeTab('loads', currentUser)) && (
+                  <a
+                    href="/loads"
+                    className="btn primary py-3.5 px-6"
+                    onClick={(e) => openPage(e, 'loads', 'driver')}
+                  >
+                    Find Loads
+                  </a>
+                )}
+                {(!currentUser || canSeeTab('shipper', currentUser)) && (
+                  <a
+                    href="/post-load"
+                    className="btn amber py-3.5 px-6"
+                    onClick={(e) => openPage(e, 'shipper', 'shipper')}
+                  >
+                    Post a Load
+                  </a>
+                )}
+              </div>
               <a
                 href="/books"
                 className="font-mono text-xs font-bold uppercase tracking-widest text-[#0F5132] underline underline-offset-4"

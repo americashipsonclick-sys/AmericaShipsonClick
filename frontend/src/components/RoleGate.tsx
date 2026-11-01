@@ -44,10 +44,10 @@ export const RoleGate: React.FC<RoleGateProps> = ({
               Authentication Required
             </h2>
             <p className="text-[#5B6168] text-sm">
-              {blurb} Sign in with a {accountLabel} account to continue.
+              {blurb} Sign in or create a {accountLabel} account to continue.
             </p>
             <button onClick={onOpenAuth} className="btn amber px-8 py-3 font-mono">
-              Sign In or Select Demo Account
+              Sign In or Register
             </button>
           </div>
         </div>
