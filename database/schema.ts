@@ -21,7 +21,8 @@ export type BookingStatus = 'active' | 'completed' | 'cancelled';
 export type LoadEventType =
   | 'posted' | 'updated' | 'booked' | 'picked_up' | 'in_transit' | 'delivered'
   | 'settled' | 'cancelled' | 'offer_made' | 'offer_accepted' | 'offer_declined'
-  | 'offer_withdrawn' | 'document_uploaded' | 'disputed' | 'dispute_resolved' | 'note';
+  | 'offer_withdrawn' | 'document_uploaded' | 'disputed' | 'dispute_resolved' | 'note'
+  | 'arrived_pickup' | 'arrived_delivery';
 export type OfferStatus = 'pending' | 'accepted' | 'declined' | 'withdrawn' | 'expired';
 export type DisputeStatus = 'open' | 'under_review' | 'resolved' | 'rejected';
 export type DisputeCategory = 'rate' | 'miles' | 'fuel' | 'detention' | 'damage' | 'fee' | 'other';
@@ -144,6 +145,18 @@ export interface Booking {
   cancellation_reason?: string;
   cancelled_by?: string;
   agreed_rate_per_mile?: number;
+}
+
+/** One GPS fix from the booked driver's phone, accepted only while the trip is active. */
+export interface BookingLocation {
+  booking_id: string;
+  recorded_at: string;
+  lat: number;
+  lng: number;
+  accuracy_m?: number;
+  speed_mps?: number;
+  heading_deg?: number;
+  received_at: string;
 }
 
 export interface Settlement {

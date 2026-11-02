@@ -24,6 +24,8 @@ export type GeoPlace = {
 
 export type GeoRoute = {
   miles: number;
+  /** Driving time at car speeds; a loaded truck runs somewhat slower. */
+  minutes: number;
   geometry: [number, number][];
 };
 
@@ -263,6 +265,7 @@ export async function drivingRoute(
       code?: string;
       routes?: Array<{
         distance: number;
+        duration: number;
         geometry?: { coordinates?: number[][] };
       }>;
     };
@@ -272,12 +275,13 @@ export async function drivingRoute(
     const geometry: [number, number][] = (route.geometry?.coordinates ?? []).map(
       ([lng, lat]) => [lat, lng] as [number, number]
     );
-    return { miles, geometry };
+    return { miles, minutes: Math.round(route.duration / 60), geometry };
   } catch {
     // Highway circuity vs great-circle; used only if the public router is down.
     const miles = Math.max(1, Math.round(haversineMiles(from, to) * 1.18));
     return {
       miles,
+      minutes: Math.round((miles / 50) * 60),
       geometry: [[from.lat, from.lng], [to.lat, to.lng]]
     };
   }

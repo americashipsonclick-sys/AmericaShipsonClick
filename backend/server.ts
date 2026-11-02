@@ -41,7 +41,9 @@ async function startServer() {
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
     res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
-    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    // Geolocation is allowed for the app's own pages: the driver's trip page
+    // reports the truck's position while a load is active.
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(self)');
     next();
   });
 

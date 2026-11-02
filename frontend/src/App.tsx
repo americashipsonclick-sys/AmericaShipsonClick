@@ -12,13 +12,14 @@ import { DriveWithUs } from './pages/DriveWithUs';
 import { PostLoad } from './pages/PostLoad';
 import { Dashboard } from './pages/Dashboard';
 import { Admin } from './pages/Admin';
+import { Trip } from './pages/Trip';
 import { NotFound } from './pages/NotFound';
 import { PrivacyPolicy, TermsOfUse } from './pages/Legal';
 import { CookieConsent } from './components/CookieConsent';
 
 import { api } from './lib/api';
 import { trackPage } from './lib/analytics';
-import { applyPageMeta, PAGE_META, pathFor, tabForPath } from './lib/routes';
+import { applyPageMeta, PAGE_META, pathFor, tabForPath, tripBookingFromUrl, tripPath } from './lib/routes';
 import { User, UserRole } from './types/api';
 
 const queryClient = new QueryClient({
@@ -32,6 +33,7 @@ const queryClient = new QueryClient({
 
 export default function App() {
   const [activeTab, setActiveTabState] = useState(() => tabForPath(window.location.pathname));
+  const [tripBookingId, setTripBookingId] = useState(tripBookingFromUrl);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [authPending, setAuthPending] = useState(true);
   const [authModalOpen, setAuthModalOpen] = useState(false);
@@ -45,6 +47,12 @@ export default function App() {
     if (window.location.pathname !== path) {
       window.history.pushState({ tab }, '', path);
     }
+  }, []);
+
+  const openTrip = useCallback((bookingId: string) => {
+    setTripBookingId(bookingId);
+    setActiveTabState('trip');
+    window.history.pushState({ tab: 'trip' }, '', tripPath(bookingId));
   }, []);
 
   // Strip a trailing slash on a known path. Unknown paths stay put so the
@@ -66,7 +74,10 @@ export default function App() {
 
   // Browser Back/Forward moves between views.
   useEffect(() => {
-    const onPopState = () => setActiveTabState(tabForPath(window.location.pathname));
+    const onPopState = () => {
+      setActiveTabState(tabForPath(window.location.pathname));
+      setTripBookingId(tripBookingFromUrl());
+    };
     window.addEventListener('popstate', onPopState);
     return () => window.removeEventListener('popstate', onPopState);
   }, []);
@@ -144,7 +155,7 @@ export default function App() {
               <FindLoads
                 currentUser={currentUser}
                 onOpenAuth={() => openAuth()}
-                setActiveTab={setActiveTab}
+                onOpenTrip={openTrip}
               />
             </RoleGate>
           )}
@@ -179,7 +190,21 @@ export default function App() {
               currentUser={currentUser}
               onOpenAuth={() => openAuth()}
               onSwitchRole={() => handleSwitchRole()}
+              onOpenTrip={openTrip}
             />
+          )}
+          {activeTab === 'trip' && (
+            <RoleGate
+              tab="trip"
+              currentUser={currentUser}
+              authPending={authPending}
+              accountLabel="driver or shipper"
+              blurb="Trip tracking is for the driver and the shipper on a load."
+              onOpenAuth={() => openAuth()}
+              onSwitchRole={() => handleSwitchRole()}
+            >
+              <Trip currentUser={currentUser} bookingId={tripBookingId} setActiveTab={setActiveTab} />
+            </RoleGate>
           )}
           {activeTab === 'admin' && (
             <Admin

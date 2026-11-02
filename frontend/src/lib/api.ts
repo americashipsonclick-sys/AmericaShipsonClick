@@ -14,7 +14,9 @@ import {
   RateCard,
   RateQuoteLog,
   AdminDriver,
-  AdminShipper
+  AdminShipper,
+  TrackPoint,
+  TripTracking
 } from '../types/api';
 
 const API_BASE = (import.meta as any).env?.VITE_API_BASE_URL || '/api';
@@ -259,6 +261,34 @@ export const api = {
       headers: { 'Content-Type': 'application/json', ...getAuthHeaders() }
     });
     return handleResponse<{ message: string; settlement: PublicLedgerItem }>(res);
+  },
+
+  // Live tracking
+  async getTripTracking(booking_id: string): Promise<TripTracking> {
+    const res = await fetch(`${API_BASE}/bookings/${encodeURIComponent(booking_id)}/tracking`, {
+      headers: getAuthHeaders()
+    });
+    return handleResponse<TripTracking>(res);
+  },
+
+  async markPickedUp(booking_id: string): Promise<Booking> {
+    const res = await fetch(`${API_BASE}/bookings/${encodeURIComponent(booking_id)}/pickup`, {
+      method: 'POST',
+      headers: getAuthHeaders()
+    });
+    return handleResponse<Booking>(res);
+  },
+
+  /** `stopped` means the trip is over (or not this driver's), so the phone should stop sending. */
+  async sendLocations(booking_id: string, points: TrackPoint[]): Promise<{ accepted: number; stopped: boolean }> {
+    const res = await fetch(`${API_BASE}/bookings/${encodeURIComponent(booking_id)}/locations`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
+      body: JSON.stringify({ points })
+    });
+    if (res.status === 409 || res.status === 404) return { accepted: 0, stopped: true };
+    const data = await handleResponse<{ accepted: number }>(res);
+    return { accepted: data.accepted, stopped: false };
   },
 
   // Settlements

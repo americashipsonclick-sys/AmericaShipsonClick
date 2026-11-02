@@ -6,7 +6,7 @@ import path from 'path';
 import { db, type SessionContext } from '../database';
 import { authenticate, generateToken, requireRole, AuthenticatedRequest } from './auth';
 import { accountLast4, clientIp, newId, sessionContextFor, tokenizeBankAccount } from './security';
-import { drivingRoute, formatPlaceLabel, reversePlace, searchPlaces, type GeoPlace } from './geo';
+import { drivingRoute, formatPlaceLabel, reversePlace, searchPlaces, type GeoPlace, type GeoRoute } from './geo';
 import { cardFromRow, loadRateCatalog, quoteFor } from './rates';
 import { EQUIPMENT_KEYS } from '../database/quote';
 
@@ -943,6 +943,272 @@ apiRouter.patch('/bookings/:id/complete', authenticate, async (req: Authenticate
     res.json({
       message: 'Settlement created and load completed',
       settlement
+    });
+  } catch (err: any) {
+    sendError(res, err);
+  }
+});
+
+// -------------------------------------------------------------
+// 4b. LIVE TRACKING
+// -------------------------------------------------------------
+// The driver's phone reports where the truck is while a trip is active, and
+// the shipper of the load polls the latest position. Which bookings accept a
+// position, who may read a trail, and when a truck has "arrived" are decided
+// by migration 0022, not here.
+
+type LatLng = { lat: number; lng: number };
+type TripStop = 'pickup' | 'delivery';
+
+/**
+ * The caller's profile ids (filling in what an older token lacks) and a
+ * database scope built from them. Routes still compare ids themselves, like
+ * the settlement route does: the embedded dev database runs as a superuser,
+ * so RLS alone would not keep one driver out of another's trip there.
+ */
+async function tripParty(req: AuthenticatedRequest) {
+  let driverId = req.user?.driverId;
+  let shipperId = req.user?.shipperId;
+  if (req.user?.role === 'shipper') shipperId = await shipperIdFor(req);
+  if (req.user?.role === 'driver' && !driverId) {
+    const drv = await scoped(req).query<{ id: string }>('SELECT id FROM driver_profiles WHERE user_id = $1', [req.user.id]);
+    driverId = drv.rows[0]?.id;
+  }
+  return { driverId, shipperId, db: scoped(req, { driverId, shipperId }) };
+}
+
+// Pickup is the one step the driver states by hand. The bookings trigger from
+// migration 0007 moves the load to in_transit when `picked_up_at` is first set.
+apiRouter.post('/bookings/:id/pickup', authenticate, requireRole('driver', 'admin'), async (req: AuthenticatedRequest, res) => {
+  try {
+    const party = await tripParty(req);
+    const booking = await party.db.transaction(async tx => {
+      const found = await tx.query<any>('SELECT * FROM bookings WHERE id = $1 FOR UPDATE', [req.params.id]);
+      const row = found.rows[0];
+      if (!row || (req.user?.role !== 'admin' && row.driver_id !== party.driverId)) {
+        throw new HttpError(404, 'Booking not found');
+      }
+      if (row.status !== 'active') throw new HttpError(409, 'This booking is no longer active.');
+      if (row.picked_up_at) return row;
+
+      const updated = await tx.query('UPDATE bookings SET picked_up_at = now() WHERE id = $1 RETURNING *', [row.id]);
+      return updated.rows[0];
+    });
+    res.json(booking);
+  } catch (err: any) {
+    sendError(res, err);
+  }
+});
+
+const trackPointSchema = z.object({
+  lat: z.number().gte(-90).lte(90),
+  lng: z.number().gte(-180).lte(180),
+  accuracy_m: z.number().nonnegative().nullish(),
+  speed_mps: z.number().nonnegative().nullish(),
+  heading_deg: z.number().gte(0).lte(360).nullish(),
+  recorded_at: z.iso.datetime()
+});
+
+// A phone that lost signal for a few hours uploads its backlog in pieces.
+const trackBatchSchema = z.object({
+  points: z.array(trackPointSchema).min(1).max(200)
+});
+
+apiRouter.post('/bookings/:id/locations', authenticate, requireRole('driver'), async (req: AuthenticatedRequest, res) => {
+  try {
+    const { points } = trackBatchSchema.parse(req.body);
+
+    const limit = await hitRateLimit(`locations:${req.user?.id}`, 30, 60);
+    if (limit && !limit.allowed) {
+      res.setHeader('Retry-After', String(limit.retry_after || 60));
+      return res.status(429).json({ error: 'Too many location uploads. Try again in a minute.' });
+    }
+
+    const params: unknown[] = [];
+    const rows = points.map(p => {
+      params.push(req.params.id, p.recorded_at, p.lat, p.lng, p.accuracy_m ?? null, p.speed_mps ?? null, p.heading_deg ?? null);
+      const n = params.length;
+      return `($${n - 6}, $${n - 5}, $${n - 4}, $${n - 3}, $${n - 2}, $${n - 1}, $${n})`;
+    });
+
+    // The guard trigger checks the booking is this driver's, on every backend.
+    const result = await (await tripParty(req)).db.query(`
+      INSERT INTO booking_locations (booking_id, recorded_at, lat, lng, accuracy_m, speed_mps, heading_deg)
+      VALUES ${rows.join(', ')}
+      ON CONFLICT (booking_id, recorded_at) DO NOTHING
+    `, params);
+    res.json({ accepted: result.rowCount });
+  } catch (err: any) {
+    // The guard trigger answers for the database: a booking that is not this
+    // driver's is not found, and a finished trip tells the phone to stop.
+    if (err?.code === 'P0002' || err?.code === '42501') {
+      return sendError(res, new HttpError(404, 'Booking not found'));
+    }
+    if (err?.code === '23514') {
+      return sendError(res, new HttpError(409, 'Tracking is off: this trip is no longer active.'));
+    }
+    sendError(res, err);
+  }
+});
+
+/** Stops posted before loads carried coordinates are geocoded once and remembered. */
+const stopCoordCache = new Map<string, LatLng | null>();
+
+async function stopCoords(lat: unknown, lng: unknown, city: string, state: string, address?: string | null): Promise<LatLng | null> {
+  if (lat != null && lng != null && Number.isFinite(Number(lat)) && Number.isFinite(Number(lng))) {
+    return { lat: Number(lat), lng: Number(lng) };
+  }
+  const q = address || `${city}, ${state}`;
+  if (stopCoordCache.has(q)) return stopCoordCache.get(q) ?? null;
+  try {
+    const hit = (await searchPlaces(q))[0];
+    const coords = hit ? { lat: hit.lat, lng: hit.lng } : null;
+    stopCoordCache.set(q, coords);
+    return coords;
+  } catch {
+    return null; // Not cached, so the next poll tries again.
+  }
+}
+
+// Shippers poll every few seconds and the public router asks for gentle use,
+// so a road route is reused until the truck has moved or a minute has passed.
+const ROUTE_CACHE_LIMIT = 500;
+const tripRouteCache = new Map<string, { stop: TripStop; key: string; at: number; route: GeoRoute }>();
+const laneRouteCache = new Map<string, GeoRoute>();
+
+function remember<V>(cache: Map<string, V>, key: string, value: V) {
+  cache.delete(key);
+  cache.set(key, value);
+  if (cache.size > ROUTE_CACHE_LIMIT) cache.delete(cache.keys().next().value as string);
+}
+
+async function routeToStop(bookingId: string, from: LatLng, stop: TripStop, to: LatLng): Promise<GeoRoute> {
+  const key = `${from.lat.toFixed(3)}|${from.lng.toFixed(3)}`;
+  const hit = tripRouteCache.get(bookingId);
+  if (hit && hit.stop === stop && (hit.key === key || Date.now() - hit.at < 60_000)) return hit.route;
+  const route = await drivingRoute(from, to);
+  remember(tripRouteCache, bookingId, { stop, key, at: Date.now(), route });
+  return route;
+}
+
+async function laneRoute(loadId: string, from: LatLng, to: LatLng): Promise<GeoRoute> {
+  const hit = laneRouteCache.get(loadId);
+  if (hit) return hit;
+  const route = await drivingRoute(from, to);
+  remember(laneRouteCache, loadId, route);
+  return route;
+}
+
+/** At most `max` points, evenly spaced, always ending on the latest one. */
+function thinTrail(points: [number, number][], max: number): [number, number][] {
+  if (points.length <= max) return points;
+  const step = Math.ceil(points.length / max);
+  const thinned = points.filter((_, i) => i % step === 0);
+  if (thinned[thinned.length - 1] !== points[points.length - 1]) thinned.push(points[points.length - 1]);
+  return thinned;
+}
+
+// One trip as both parties see it: the stops, where the truck is, the road
+// left to the next stop, and the timeline. Anyone who is not the driver, the
+// shipper of the load, or an admin gets 404, so booking ids cannot be probed.
+apiRouter.get('/bookings/:id/tracking', authenticate, async (req: AuthenticatedRequest, res) => {
+  try {
+    const party = await tripParty(req);
+    const trips = party.db;
+    const tripRes = await trips.query<any>(`
+      SELECT b.id, b.load_id, b.driver_id, b.status, b.booked_at, b.picked_up_at, b.delivered_at, b.pod_url,
+             l.shipper_id, l.status AS load_status, l.origin_city, l.origin_state, l.origin_address, l.origin_lat, l.origin_lng,
+             l.dest_city, l.dest_state, l.dest_address, l.dest_lat, l.dest_lng,
+             l.pickup_date, l.delivery_date, l.miles, l.equipment_type, l.reference_number, l.weight_lbs
+        FROM bookings b
+        JOIN loads l ON l.id = b.load_id
+       WHERE b.id = $1
+    `, [req.params.id]);
+    const trip = tripRes.rows[0];
+    const isParty = req.user?.role === 'admin'
+      || (req.user?.role === 'driver' && !!party.driverId && trip?.driver_id === party.driverId)
+      || (req.user?.role === 'shipper' && !!party.shipperId && trip?.shipper_id === party.shipperId);
+    if (!trip || !isParty) throw new HttpError(404, 'Booking not found');
+
+    const [pointsRes, eventsRes, pickup, delivery] = await Promise.all([
+      trips.query<any>(`
+        SELECT lat, lng, accuracy_m, speed_mps, heading_deg, recorded_at
+          FROM booking_locations
+         WHERE booking_id = $1
+         ORDER BY recorded_at DESC
+         LIMIT 5000
+      `, [trip.id]),
+      // 'posted' predates any booking; everything else belongs to this one, so
+      // a cancelled earlier booking of the same load stays out of the story.
+      trips.query<any>(`
+        SELECT event_type, occurred_at, notes, location_city, location_state
+          FROM load_events
+         WHERE load_id = $1 AND (booking_id = $2 OR event_type = 'posted')
+         ORDER BY occurred_at
+      `, [trip.load_id, trip.id]),
+      stopCoords(trip.origin_lat, trip.origin_lng, trip.origin_city, trip.origin_state, trip.origin_address),
+      stopCoords(trip.dest_lat, trip.dest_lng, trip.dest_city, trip.dest_state, trip.dest_address)
+    ]);
+
+    const phase =
+      trip.status === 'cancelled' || trip.load_status === 'cancelled' ? 'cancelled'
+        : trip.status === 'completed' || trip.load_status === 'delivered' ? 'delivered'
+          : trip.picked_up_at ? 'to_delivery' : 'to_pickup';
+
+    const latest = pointsRes.rows[0];
+    const last = latest ? {
+      lat: Number(latest.lat),
+      lng: Number(latest.lng),
+      accuracy_m: latest.accuracy_m == null ? null : Number(latest.accuracy_m),
+      speed_mps: latest.speed_mps == null ? null : Number(latest.speed_mps),
+      heading_deg: latest.heading_deg == null ? null : Number(latest.heading_deg),
+      recorded_at: latest.recorded_at
+    } : null;
+    const trail = thinTrail(
+      pointsRes.rows.slice().reverse().map((p): [number, number] => [Number(p.lat), Number(p.lng)]),
+      500
+    );
+
+    const nextStop: TripStop | null = phase === 'to_pickup' ? 'pickup' : phase === 'to_delivery' ? 'delivery' : null;
+    const target = nextStop === 'pickup' ? pickup : nextStop === 'delivery' ? delivery : null;
+    const [toStop, lane] = await Promise.all([
+      nextStop && target && last ? routeToStop(trip.id, last, nextStop, target) : null,
+      pickup && delivery ? laneRoute(trip.load_id, pickup, delivery) : null
+    ]);
+
+    res.json({
+      booking: {
+        id: trip.id,
+        load_id: trip.load_id,
+        status: trip.status,
+        booked_at: trip.booked_at,
+        picked_up_at: trip.picked_up_at,
+        delivered_at: trip.delivered_at,
+        pod_attached: Boolean(trip.pod_url)
+      },
+      load: {
+        id: trip.load_id,
+        status: trip.load_status,
+        origin_city: trip.origin_city,
+        origin_state: trip.origin_state,
+        origin_address: trip.origin_address,
+        dest_city: trip.dest_city,
+        dest_state: trip.dest_state,
+        dest_address: trip.dest_address,
+        pickup_date: trip.pickup_date,
+        delivery_date: trip.delivery_date,
+        miles: Number(trip.miles),
+        equipment_type: trip.equipment_type,
+        reference_number: trip.reference_number,
+        weight_lbs: trip.weight_lbs == null ? null : Number(trip.weight_lbs)
+      },
+      phase,
+      stops: { pickup, delivery },
+      last,
+      trail,
+      remaining: nextStop && toStop ? { stop: nextStop, ...toStop } : null,
+      lane: lane?.geometry ?? null,
+      events: eventsRes.rows
     });
   } catch (err: any) {
     sendError(res, err);

@@ -190,6 +190,63 @@ export interface BookingWithLoad extends Booking {
   notes?: string;
 }
 
+export type TripPhase = 'to_pickup' | 'to_delivery' | 'delivered' | 'cancelled';
+export type TripStop = 'pickup' | 'delivery';
+
+/** One GPS fix from the driver's phone. */
+export interface TrackPoint {
+  lat: number;
+  lng: number;
+  accuracy_m: number | null;
+  speed_mps: number | null;
+  heading_deg: number | null;
+  recorded_at: string;
+}
+
+export interface TripEvent {
+  event_type: string;
+  occurred_at: string;
+  notes: string | null;
+  location_city: string | null;
+  location_state: string | null;
+}
+
+/** GET /bookings/:id/tracking — one trip as the driver and the shipper see it. */
+export interface TripTracking {
+  booking: {
+    id: string;
+    load_id: string;
+    status: BookingStatus;
+    booked_at: string;
+    picked_up_at: string | null;
+    delivered_at: string | null;
+    pod_attached: boolean;
+  };
+  load: {
+    id: string;
+    status: LoadStatus;
+    origin_city: string;
+    origin_state: string;
+    origin_address: string | null;
+    dest_city: string;
+    dest_state: string;
+    dest_address: string | null;
+    pickup_date: string;
+    delivery_date: string | null;
+    miles: number;
+    equipment_type: EquipmentType;
+    reference_number: string | null;
+    weight_lbs: number | null;
+  };
+  phase: TripPhase;
+  stops: { pickup: { lat: number; lng: number } | null; delivery: { lat: number; lng: number } | null };
+  last: TrackPoint | null;
+  trail: [number, number][];
+  remaining: { stop: TripStop; miles: number; minutes: number; geometry: [number, number][] } | null;
+  lane: [number, number][] | null;
+  events: TripEvent[];
+}
+
 export interface PublicLedgerItem {
   id: string;
   load_id: string;
