@@ -81,15 +81,6 @@ export const api = {
     return data.card;
   },
 
-  async postDiesel(dollars_per_gallon: number): Promise<{ diesel_ppg: number }> {
-    const res = await fetch(`${API_BASE}/admin/diesel`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', ...getAuthHeaders() },
-      body: JSON.stringify({ dollars_per_gallon })
-    });
-    return handleResponse<{ diesel_ppg: number }>(res);
-  },
-
   async patchAccessorial(code: string, amount: number): Promise<void> {
     const res = await fetch(`${API_BASE}/admin/accessorials/${code}`, {
       method: 'PATCH',

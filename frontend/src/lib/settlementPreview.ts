@@ -8,16 +8,14 @@ import type { PlatformConfig } from '../types/api';
 export const DEFAULT_PLATFORM_CONFIG: PlatformConfig = {
   fee_pct: 0.07,
   factor_pct: 0.03,
-  broker_comparison_pct: 0.20,
-  fuel_rate_per_mile: 0.45
+  broker_comparison_pct: 0.20
 };
 
 export function withConfigDefaults(config?: Partial<PlatformConfig> | null): PlatformConfig {
   return {
     fee_pct: config?.fee_pct ?? DEFAULT_PLATFORM_CONFIG.fee_pct,
     factor_pct: config?.factor_pct ?? DEFAULT_PLATFORM_CONFIG.factor_pct,
-    broker_comparison_pct: config?.broker_comparison_pct ?? DEFAULT_PLATFORM_CONFIG.broker_comparison_pct,
-    fuel_rate_per_mile: config?.fuel_rate_per_mile ?? DEFAULT_PLATFORM_CONFIG.fuel_rate_per_mile
+    broker_comparison_pct: config?.broker_comparison_pct ?? DEFAULT_PLATFORM_CONFIG.broker_comparison_pct
   };
 }
 
@@ -26,12 +24,10 @@ export interface SettlementPreview {
   ratePerMile: number;
   feePct: number;
   factorPct: number;
-  fuelRate: number;
   brokerPct: number;
   factored: boolean;
   gross: number;
   fee: number;
-  fuel: number;
   factor: number;
   net: number;
   brokerKeep: number;
@@ -50,21 +46,18 @@ export function settlementPreview(
   const factored = Boolean(opts?.factored);
   const gross = m * rate;
   const fee = gross * cfg.fee_pct;
-  const fuel = m * cfg.fuel_rate_per_mile;
   const factor = factored ? gross * cfg.factor_pct : 0;
-  const net = gross - fee - fuel - factor;
+  const net = gross - fee - factor;
   const brokerKeep = gross * cfg.broker_comparison_pct;
   return {
     miles: m,
     ratePerMile: rate,
     feePct: cfg.fee_pct,
     factorPct: cfg.factor_pct,
-    fuelRate: cfg.fuel_rate_per_mile,
     brokerPct: cfg.broker_comparison_pct,
     factored,
     gross,
     fee,
-    fuel,
     factor,
     net,
     brokerKeep,

@@ -156,7 +156,7 @@ export const PostLoad: React.FC<PostLoadProps> = ({ currentUser, onOpenAuth, set
         <span className="eyebrow block mb-1">Shipper Portal</span>
         <h2 className="text-2xl sm:text-3xl mb-2">Post a New Freight Load</h2>
         <p className="text-[#5B6168] mb-8">
-          Miles come from the map. Search the dock address, street, ZIP, or a city — or reuse a location you have posted before. Price comes from the equipment table: linehaul, distance minimum, deadhead buffer, diesel surcharge, accessorials, demand, express, then 7% gross.
+          Miles come from the map. Search the dock address, street, ZIP, or a city — or reuse a location you have posted before. Price comes from the equipment table: linehaul, distance minimum, deadhead buffer, accessorials, demand, express, then 7% gross.
         </p>
 
         {errorMsg && (
@@ -387,10 +387,6 @@ export const PostLoad: React.FC<PostLoadProps> = ({ currentUser, onOpenAuth, set
                   <span>Deadhead buffer:</span>
                   <span>{usd(quote.deadhead_amount)}</span>
                 </div>
-                <div className="flex justify-between text-[#C9CDD1]">
-                  <span>Fuel (diesel ${quote.diesel_ppg.toFixed(2)}/gal):</span>
-                  <span>{usd(quote.fuel_surcharge)}</span>
-                </div>
                 {quote.accessorials_amount > 0 && (
                   <div className="flex justify-between text-[#C9CDD1]">
                     <span>Accessorials:</span>
@@ -431,7 +427,7 @@ export const PostLoad: React.FC<PostLoadProps> = ({ currentUser, onOpenAuth, set
             )}
 
             <div className="mt-4 text-[0.78rem] font-mono text-[#C9CDD1] leading-relaxed">
-              Diesel is a live index (now ${Number(catalog?.diesel_ppg ?? 0).toFixed(2)}/gal). The accepted total is logged so the table can be tuned later. Open Books takes {pctLabel(preview.feePct)} of posted gross.
+              The accepted total is logged so the table can be tuned later. Open Books takes {pctLabel(preview.feePct)} of posted gross.
             </div>
           </div>
         </div>

@@ -15,7 +15,7 @@ tables. Messaging and email are not in this database yet.
 | --- | --- | --- |
 | Identity | `users`, `driver_profiles`, `shipper_profiles`, `driver_documents`, `driver_equipment`, `driver_payment_accounts`, `verification_reviews` | Who may act. Admin cannot be self-served. A carrier cannot mark themselves verified. |
 | Freight | `loads`, `bookings`, `booking_locations`, `load_events`, `load_offers` | One live booking per load. Illegal status jumps are rejected. Offers accept atomically. GPS points come only from the booked driver while the trip is active, and reaching a stop logs the arrival once. |
-| Open Books | `settlements`, `settlement_disputes`, `settlement_adjustments`, `platform_config` | `net = gross − fee − fuel − factor`. Settlements are append-only. Corrections are additive. |
+| Open Books | `settlements`, `settlement_disputes`, `settlement_adjustments`, `platform_config` | `net = gross − fee − factor`. Settlements are append-only. Corrections are additive. |
 | Ops | `refresh_tokens`, `password_reset_tokens`, `idempotency_keys`, `api_rate_limits`, `auth_login_attempts`, `audit_log`, `notifications`, `notification_preferences`, `ratings` | Sessions, throttles, and reputation survive restarts. |
 | Phase 1 token | `wallets`, `chain_contracts`, `webhook_receipts`, `contract_events`, `token_buys`, `token_positions`, `app_memberships`, `premium_attestations`, `hourly_epochs`, `transaction_reserves`, `hourly_claims`, `driver_payouts` | Buy-in, 30-day lock, 1× vs 5× never stacked, holder claims cannot exceed 7% of the 10% reserve. Driver payouts are USDC on Base only. |
 | Phase 2 (empty) | `haul_receipts` | Same receipt will carry plate, load id, miles, rate, reserve. Nothing writes it yet. |
@@ -93,7 +93,7 @@ erDiagram
         text id PK
         text booking_id FK UK
         numeric gross_amount "miles x rate"
-        numeric net_amount "gross - fee - fuel - factor"
+        numeric net_amount "gross - fee - factor"
         timestamptz settled_at
     }
 ```
