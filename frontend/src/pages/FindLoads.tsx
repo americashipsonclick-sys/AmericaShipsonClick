@@ -9,10 +9,10 @@ import { pctLabel, settlementPreview, usd, withConfigDefaults } from '../lib/set
 interface FindLoadsProps {
   currentUser: User | null;
   onOpenAuth: () => void;
-  setActiveTab: (tab: string) => void;
+  onOpenTrip: (bookingId: string) => void;
 }
 
-export const FindLoads: React.FC<FindLoadsProps> = ({ currentUser, onOpenAuth, setActiveTab }) => {
+export const FindLoads: React.FC<FindLoadsProps> = ({ currentUser, onOpenAuth, onOpenTrip }) => {
   const queryClient = useQueryClient();
 
   const [origin, setOrigin] = useState('');
@@ -51,15 +51,16 @@ export const FindLoads: React.FC<FindLoadsProps> = ({ currentUser, onOpenAuth, s
   // Book load mutation
   const bookMutation = useMutation({
     mutationFn: (loadId: string) => api.bookLoad(loadId),
-    onSuccess: () => {
+    onSuccess: (booking) => {
       setBookingSuccess(true);
       setBookingError(null);
       queryClient.invalidateQueries({ queryKey: ['loads'] });
       queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      // Straight to the trip: the map, the road to pickup, and location sharing.
       setTimeout(() => {
         setSelectedLoad(null);
         setBookingSuccess(false);
-        setActiveTab('dashboard');
+        onOpenTrip(booking.id);
       }, 900);
     },
     onError: (err: any) => {
@@ -305,7 +306,7 @@ export const FindLoads: React.FC<FindLoadsProps> = ({ currentUser, onOpenAuth, s
 
               {bookingSuccess ? (
                 <div className="p-4 bg-[#0F5132] text-[#F0EAD8] border-2 border-[#14171A] font-mono text-center mb-4">
-                  ✓ Load Booked Successfully! View in your Dashboard.
+                  ✓ Load Booked! Opening your trip map…
                 </div>
               ) : (
                 <>

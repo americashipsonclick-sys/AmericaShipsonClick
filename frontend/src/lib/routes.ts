@@ -10,6 +10,7 @@ export const TAB_PATHS: Record<string, string> = {
   shipper: '/post-load',
   dashboard: '/dashboard',
   admin: '/admin',
+  trip: '/trip',
   privacy: '/privacy',
   terms: '/terms'
 };
@@ -28,6 +29,15 @@ export function pathFor(tab: string): string {
   return TAB_PATHS[tab] ?? '/';
 }
 
+/** The trip page names its booking in the query: /trip?booking=BK-... */
+export function tripPath(bookingId: string): string {
+  return `${TAB_PATHS.trip}?booking=${encodeURIComponent(bookingId)}`;
+}
+
+export function tripBookingFromUrl(): string | null {
+  return new URLSearchParams(window.location.search).get('booking');
+}
+
 /**
  * Tabs only some roles may see. Admins keep every tab because the API lets
  * them post and book too. Tabs not listed here are open to everyone.
@@ -35,7 +45,8 @@ export function pathFor(tab: string): string {
 export const TAB_ROLES: Record<string, UserRole[]> = {
   loads: ['driver', 'admin'],
   shipper: ['shipper', 'admin'],
-  admin: ['admin']
+  admin: ['admin'],
+  trip: ['driver', 'shipper', 'admin']
 };
 
 export function canSeeTab(tab: string, user: User | null): boolean {
@@ -94,6 +105,12 @@ export const PAGE_META: Record<string, { title: string; description: string; pat
     title: 'Admin — America Ships On Click',
     description: 'Operator console for America Ships On Click.',
     path: '/admin',
+    robots: 'noindex,nofollow'
+  },
+  trip: {
+    title: 'Trip — America Ships On Click',
+    description: 'Live position, route, and timeline for a booked load.',
+    path: '/trip',
     robots: 'noindex,nofollow'
   },
   privacy: {

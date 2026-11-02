@@ -660,3 +660,169 @@ table.ledger tbody tr:hover {
   }
 }
 
+
+/* Trip tracking — the truck, the road behind it, and the road ahead. */
+.trip-map {
+  height: min(62vh, 560px);
+  min-height: 360px;
+}
+
+.trip-map .leaflet-tile-pane {
+  filter: saturate(0.55) sepia(0.18) contrast(1.05);
+}
+
+/* Under the map rather than on it, so they never cover the zoom control. */
+.trip-map-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.trip-map-actions .btn {
+  background: var(--white);
+}
+
+.trip-truck-wrap {
+  background: none !important;
+  border: none !important;
+}
+
+.trip-truck {
+  position: relative;
+  display: block;
+  width: 36px;
+  height: 36px;
+}
+
+.trip-truck-dot {
+  position: absolute;
+  inset: 8px;
+  border-radius: 50%;
+  background: var(--ink);
+  border: 3px solid var(--amber);
+  box-shadow: 0 0 0 4px rgba(227, 160, 8, 0.3);
+}
+
+/* Points the way the truck is driving; drawn only when the phone knows. */
+.trip-truck-heading {
+  position: absolute;
+  inset: 0;
+}
+
+.trip-truck-heading::before {
+  content: '';
+  position: absolute;
+  top: -4px;
+  left: 50%;
+  margin-left: -6px;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 10px solid var(--ink);
+}
+
+.trip-legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px 14px;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.trip-legend-swatch {
+  display: inline-block;
+  width: 22px;
+  height: 0;
+  margin-right: -8px;
+  border-top: 4px solid;
+  vertical-align: middle;
+}
+
+.trip-legend-swatch.trail { border-color: var(--green); }
+.trip-legend-swatch.ahead { border-color: var(--amber); }
+.trip-legend-swatch.lane { border-top: 3px dashed var(--steel); }
+
+.trip-card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  background: var(--white);
+  border: 1px solid #E4DCC4;
+  border-radius: 4px;
+  box-shadow: 0 1px 2px rgba(20, 23, 26, 0.06);
+}
+
+.trip-card.is-live {
+  border: 2px solid var(--green);
+}
+
+.trip-phase,
+.trip-sharing {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 3px;
+  font-family: var(--font-mono);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: var(--paper-dark);
+  color: var(--ink);
+}
+
+.trip-phase.to_pickup { background: var(--amber); }
+.trip-phase.to_delivery,
+.trip-sharing.on { background: var(--green); color: var(--white); }
+.trip-phase.cancelled,
+.trip-sharing.denied { background: var(--red); color: var(--white); }
+
+.trip-warn {
+  padding: 8px 10px;
+  border-left: 3px solid var(--amber);
+  background: rgba(227, 160, 8, 0.12);
+  color: var(--amber-ink);
+  font-size: 0.8rem;
+}
+
+.trip-timeline {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0;
+  padding: 0 0 0 14px;
+  list-style: none;
+  border-left: 2px solid #E4DCC4;
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+}
+
+.trip-timeline li {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+.trip-timeline li::before {
+  content: '';
+  position: absolute;
+  left: -20px;
+  top: 4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--green);
+  border: 2px solid var(--white);
+}
+
+@media (max-width: 640px) {
+  .trip-map {
+    height: 52vh;
+    min-height: 300px;
+  }
+}

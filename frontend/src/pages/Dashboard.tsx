@@ -8,9 +8,11 @@ interface DashboardProps {
   currentUser: User | null;
   onOpenAuth: () => void;
   onSwitchRole: () => void;
+  /** Absent in the admin console, which embeds only the ledger view (no trips). */
+  onOpenTrip?: (bookingId: string) => void;
 }
 
-export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onOpenAuth, onSwitchRole }) => {
+export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onOpenAuth, onSwitchRole, onOpenTrip = () => undefined }) => {
   const queryClient = useQueryClient();
   const [podBusy, setPodBusy] = useState<Record<string, boolean>>({});
   const [podError, setPodError] = useState<Record<string, string>>({});
@@ -104,6 +106,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onOpenAuth, o
   };
 
   const activeBookings = bookings.filter((b) => b.status === 'active');
+  // A shipper reaches a trip through the load; at most one booking per load is not cancelled.
+  const bookingByLoad = new Map(bookings.filter((b) => b.status !== 'cancelled').map((b) => [b.load_id, b]));
   const isDriver = currentUser.role === 'driver';
   const isShipper = currentUser.role === 'shipper';
 
@@ -198,6 +202,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onOpenAuth, o
                 completeError={completeBookingMutation.error instanceof Error ? completeBookingMutation.error.message : null}
                 onPodFile={(bookingId, file) => handlePodUpload(bookingId, file)}
                 onComplete={(bookingId) => completeBookingMutation.mutate(bookingId)}
+                onOpenTrip={onOpenTrip}
               />
             )}
 
@@ -209,17 +214,31 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onOpenAuth, o
                   <p className="font-mono text-xs text-[#5B6168]">No loads posted yet.</p>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {myLoads.map((load) => (
-                      <div key={load.id} className="p-4 bg-[#F0EAD8] border border-[#E4DCC4] rounded space-y-1 font-mono text-xs">
-                        <div className="font-bold text-sm text-[#14171A]">
-                          {load.id} · {load.origin_city}, {load.origin_state} &rarr; {load.dest_city}, {load.dest_state}
+                    {myLoads.map((load) => {
+                      const booking = bookingByLoad.get(load.id);
+                      const moving = load.status === 'booked' || load.status === 'in_transit';
+                      return (
+                        <div key={load.id} className="p-4 bg-[#F0EAD8] border border-[#E4DCC4] rounded space-y-1 font-mono text-xs">
+                          <div className="font-bold text-sm text-[#14171A]">
+                            {load.id} · {load.origin_city}, {load.origin_state} &rarr; {load.dest_city}, {load.dest_state}
+                          </div>
+                          <div>Status: {load.status.replace('_', ' ')}</div>
+                          <div>
+                            {Number(load.miles).toLocaleString()} mi · ${Number(load.rate_per_mile).toFixed(2)}/mi
+                          </div>
+                          {booking && (moving || load.status === 'delivered') && (
+                            <div className="pt-2">
+                              <button
+                                onClick={() => onOpenTrip(booking.id)}
+                                className={`btn ${moving ? 'primary' : 'ghost'} py-1.5 px-3 text-xs`}
+                              >
+                                {moving ? 'Track truck' : 'View trip'}
+                              </button>
+                            </div>
+                          )}
                         </div>
-                        <div>Status: {load.status}</div>
-                        <div>
-                          {Number(load.miles).toLocaleString()} mi · ${Number(load.rate_per_mile).toFixed(2)}/mi
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>
@@ -283,7 +302,8 @@ function ActiveBookingsPanel({
   completingId,
   completeError,
   onPodFile,
-  onComplete
+  onComplete,
+  onOpenTrip
 }: {
   bookings: BookingWithLoad[];
   isLoading: boolean;
@@ -293,6 +313,7 @@ function ActiveBookingsPanel({
   completeError: string | null;
   onPodFile: (bookingId: string, file: File) => void;
   onComplete: (bookingId: string) => void;
+  onOpenTrip: (bookingId: string) => void;
 }) {
   return (
     <div className="bg-[#FAFAF7] border border-[#E4DCC4] rounded p-5 shadow-sm space-y-4">
@@ -309,7 +330,10 @@ function ActiveBookingsPanel({
               <div className="font-bold text-sm text-[#14171A]">
                 {booking.load_id} · {booking.origin_city}, {booking.origin_state} &rarr; {booking.dest_city}, {booking.dest_state}
               </div>
-              <div>Booking {booking.id}</div>
+              <div>Booking {booking.id} · {booking.load_status.replace('_', ' ')}</div>
+              <button onClick={() => onOpenTrip(booking.id)} className="btn amber py-1.5 px-3 text-xs">
+                Open trip map
+              </button>
               <div>
                 Miles: {Number(booking.miles).toLocaleString()} · Rate: ${Number(booking.rate_per_mile).toFixed(2)}/mi
               </div>

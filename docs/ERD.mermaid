@@ -14,6 +14,7 @@ erDiagram
     loads ||--o{ settlements : "1:N"
     
     bookings ||--o| settlements : "1:1"
+    bookings ||--o{ booking_locations : "tracked"
 
     users {
         string id PK
@@ -92,7 +93,18 @@ erDiagram
         timestamp booked_at
         enum status "active | completed | cancelled"
         string pod_url
+        timestamp picked_up_at
         timestamp delivered_at
+    }
+
+    booking_locations {
+        string booking_id PK,FK
+        timestamp recorded_at PK
+        float lat
+        float lng
+        float accuracy_m
+        float speed_mps
+        float heading_deg
     }
 
     settlements {

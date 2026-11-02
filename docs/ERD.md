@@ -14,7 +14,7 @@ tables. Messaging and email are not in this database yet.
 | Domain | Tables | What the database decides |
 | --- | --- | --- |
 | Identity | `users`, `driver_profiles`, `shipper_profiles`, `driver_documents`, `driver_equipment`, `driver_payment_accounts`, `verification_reviews` | Who may act. Admin cannot be self-served. A carrier cannot mark themselves verified. |
-| Freight | `loads`, `bookings`, `load_events`, `load_offers` | One live booking per load. Illegal status jumps are rejected. Offers accept atomically. |
+| Freight | `loads`, `bookings`, `booking_locations`, `load_events`, `load_offers` | One live booking per load. Illegal status jumps are rejected. Offers accept atomically. GPS points come only from the booked driver while the trip is active, and reaching a stop logs the arrival once. |
 | Open Books | `settlements`, `settlement_disputes`, `settlement_adjustments`, `platform_config` | `net = gross − fee − fuel − factor`. Settlements are append-only. Corrections are additive. |
 | Ops | `refresh_tokens`, `password_reset_tokens`, `idempotency_keys`, `api_rate_limits`, `auth_login_attempts`, `audit_log`, `notifications`, `notification_preferences`, `ratings` | Sessions, throttles, and reputation survive restarts. |
 | Phase 1 token | `wallets`, `chain_contracts`, `webhook_receipts`, `contract_events`, `token_buys`, `token_positions`, `app_memberships`, `premium_attestations`, `hourly_epochs`, `transaction_reserves`, `hourly_claims`, `driver_payouts` | Buy-in, 30-day lock, 1× vs 5× never stacked, holder claims cannot exceed 7% of the 10% reserve. Driver payouts are USDC on Base only. |
@@ -44,6 +44,7 @@ erDiagram
     loads ||--o{ settlements : "ledgered"
 
     bookings ||--o| settlements : "1:1"
+    bookings ||--o{ booking_locations : "tracked"
     bookings ||--o{ ratings : "earned"
 
     settlements ||--o{ settlement_disputes : "challenged"
@@ -76,6 +77,16 @@ erDiagram
         text driver_id FK
         numeric agreed_rate_per_mile "offer wins over posted"
         booking_status status
+        timestamptz picked_up_at "set by the driver; load goes in_transit"
+    }
+
+    booking_locations {
+        text booking_id PK,FK
+        timestamptz recorded_at PK "phone's clock; resends are skipped"
+        float lat
+        float lng
+        real speed_mps
+        real heading_deg
     }
 
     settlements {

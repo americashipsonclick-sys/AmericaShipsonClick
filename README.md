@@ -349,6 +349,9 @@ JWT_SECRET="americashipsonclick_secret_jwt_key_2026"
 - `POST /api/bookings` — Driver books open load (transactionally locked)
 - `PATCH /api/bookings/:id/pod` — Upload Proof of Delivery (POD)
 - `PATCH /api/bookings/:id/complete` — Complete booking & trigger authoritative settlement calculation
+- `POST /api/bookings/:id/pickup` — Driver marks the load picked up, which moves it to `in_transit`
+- `POST /api/bookings/:id/locations` — Driver's phone reports GPS points while the trip is active (refused after delivery or cancellation)
+- `GET /api/bookings/:id/tracking` — Live trip for the driver, the load's shipper, or an admin: truck position, trail, road and drive time to the next stop, timeline
 - `GET /api/settlements` — Public Open Books ledger (paginated)
 - `GET /api/settlements/aggregate` — DB aggregate totals query
 
@@ -376,7 +379,7 @@ JWT_SECRET="americashipsonclick_secret_jwt_key_2026"
 
 ### Main Tables:
 - Identity: `users`, `driver_profiles`, `driver_documents`, `driver_equipment`, `driver_payment_accounts`, `shipper_profiles`, `verification_reviews`
-- Freight: `loads`, `bookings`, `load_events`, `load_offers`, `settlements`, `settlement_disputes`, `settlement_adjustments`, `platform_config`
+- Freight: `loads`, `bookings`, `booking_locations`, `load_events`, `load_offers`, `settlements`, `settlement_disputes`, `settlement_adjustments`, `platform_config`
 - Phase 1 token: `wallets`, `chain_contracts`, `webhook_receipts`, `contract_events`, `token_buys`, `token_positions`, `app_memberships`, `premium_attestations`, `hourly_epochs`, `transaction_reserves`, `hourly_claims`, `driver_payouts`
 - Phase 2 (empty): `haul_receipts`
 - Ops: `ratings`, `notifications`, `audit_log`, `refresh_tokens`, `schema_migrations`

@@ -25,7 +25,7 @@ function mileIcon(miles: number, active: boolean): L.DivIcon {
   });
 }
 
-function stopIcon(kind: 'pickup' | 'drop'): L.DivIcon {
+export function stopIcon(kind: 'pickup' | 'drop'): L.DivIcon {
   const label = kind === 'pickup' ? 'Pickup' : 'Drop';
   return L.divIcon({
     className: 'board-stop-wrap',
