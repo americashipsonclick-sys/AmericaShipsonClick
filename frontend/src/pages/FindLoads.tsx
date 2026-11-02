@@ -106,7 +106,7 @@ export const FindLoads: React.FC<FindLoadsProps> = ({ currentUser, onOpenAuth, o
         <span className="eyebrow block mb-1">Find Freight</span>
         <h2 className="text-3xl sm:text-4xl mb-2">Available Load Board</h2>
         <p className="text-[#5B6168] font-sans text-xs sm:text-sm mb-8">
-          Open loads plot on the map at the pickup the shipper dropped. Tap a mile pin to see the dock, the drop, and the lane. Filter by address, street, ZIP, city, or equipment. Ledger net is the same math Open Books will publish: gross minus the {pctLabel(withConfigDefaults(config).fee_pct)} platform fee, modeled fuel, and optional same-day factor.
+          Open loads plot on the map at the pickup the shipper dropped. Tap a mile pin to see the dock, the drop, and the lane. Filter by address, street, ZIP, city, or equipment. Ledger net is the same math Open Books will publish: gross minus the {pctLabel(withConfigDefaults(config).fee_pct)} platform fee and optional same-day factor.
         </p>
 
         {/* Tactile Filter Bar */}
@@ -248,10 +248,6 @@ export const FindLoads: React.FC<FindLoadsProps> = ({ currentUser, onOpenAuth, o
                         <span>Platform fee ({pctLabel(preview.feePct)})</span>
                         <span>&minus;{usd(preview.fee)}</span>
                       </div>
-                      <div className="flex justify-between text-[#5B6168]">
-                        <span>Modeled fuel (${preview.fuelRate.toFixed(2)}/mi)</span>
-                        <span>&minus;{usd(preview.fuel)}</span>
-                      </div>
                       {preview.factored && (
                         <div className="flex justify-between text-[#5B6168]">
                           <span>Same-day factor ({pctLabel(preview.factorPct)})</span>
@@ -323,10 +319,6 @@ export const FindLoads: React.FC<FindLoadsProps> = ({ currentUser, onOpenAuth, o
                         <div className="flex justify-between text-[#8C2F1B]">
                           <span>Platform Fee ({pctLabel(preview.feePct)}):</span>
                           <span>&minus;{usd(preview.fee)}</span>
-                        </div>
-                        <div className="flex justify-between text-[#5B6168]">
-                          <span>Modeled fuel (${preview.fuelRate.toFixed(2)}/mi):</span>
-                          <span>&minus;{usd(preview.fuel)}</span>
                         </div>
                         {preview.factored && (
                           <div className="flex justify-between text-[#5B6168]">

@@ -25,7 +25,7 @@ export type LoadEventType =
   | 'arrived_pickup' | 'arrived_delivery';
 export type OfferStatus = 'pending' | 'accepted' | 'declined' | 'withdrawn' | 'expired';
 export type DisputeStatus = 'open' | 'under_review' | 'resolved' | 'rejected';
-export type DisputeCategory = 'rate' | 'miles' | 'fuel' | 'detention' | 'damage' | 'fee' | 'other';
+export type DisputeCategory = 'rate' | 'miles' | 'detention' | 'damage' | 'fee' | 'other';
 export type MembershipStatus = 'active' | 'canceled' | 'expired';
 export type EpochStatus = 'open' | 'closed';
 export type ReserveSource = 'settlement' | 'on_chain' | 'manual';
@@ -165,11 +165,9 @@ export interface Settlement {
   load_id: string;
   miles: number;
   rate_per_mile: number;
-  fuel_rate_per_mile: number;
   gross_amount: number;
   fee_amount: number;
   fee_pct_applied: number;
-  fuel_cost: number;
   factor_cost: number;
   factored: boolean;
   net_amount: number;
@@ -186,11 +184,9 @@ export interface PublicLedgerItem {
   equipment_type: EquipmentType;
   miles: number;
   rate_per_mile: number;
-  fuel_rate_per_mile: number;
   gross_amount: number;
   fee_amount: number;
   fee_pct_applied: number;
-  fuel_cost: number;
   factor_cost: number;
   factored: boolean;
   net_amount: number;
@@ -202,7 +198,6 @@ export interface SettlementTotals {
   miles: number;
   gross: number;
   fee: number;
-  fuel: number;
   factor: number;
   net: number;
 }
@@ -211,7 +206,6 @@ export interface PlatformConfig {
   fee_pct: number;
   factor_pct: number;
   broker_comparison_pct: number;
-  fuel_rate_per_mile: number;
   reserve_pct?: number;
   holder_slice_of_reserve?: number;
   regular_weight?: number;

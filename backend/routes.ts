@@ -129,9 +129,7 @@ apiRouter.get('/config', async (req, res) => {
       fee_pct: configMap['fee_pct'] ?? 0.07,
       factor_pct: configMap['factor_pct'] ?? 0.03,
       broker_comparison_pct: configMap['broker_comparison_pct'] ?? 0.20,
-      fuel_rate_per_mile: configMap['fuel_rate_per_mile'] ?? 0.45,
-      quote_gross_pct: configMap['quote_gross_pct'] ?? 0.07,
-      diesel_base_ppg: configMap['diesel_base_ppg'] ?? 3.50
+      quote_gross_pct: configMap['quote_gross_pct'] ?? 0.07
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -728,12 +726,12 @@ apiRouter.post('/loads', authenticate, requireRole('shipper', 'admin'), async (r
       await tx.query(`
         INSERT INTO rate_quotes (
           id, equipment_key, load_id, miles, deadhead_miles, demand_multiplier, express,
-          diesel_ppg, breakdown, quoted_total, quoted_rate_per_mile, overridden,
+          breakdown, quoted_total, quoted_rate_per_mile, overridden,
           posted_rate_per_mile, actor_id
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11,$12,$13,$14)
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9,$10,$11,$12,$13)
       `, [
         quoteId, body.equipment_type, loadId, body.miles, body.deadhead_miles ?? 0,
-        quote.demand_multiplier, quote.express, quote.diesel_ppg, JSON.stringify(quote),
+        quote.demand_multiplier, quote.express, JSON.stringify(quote),
         quote.quoted_total, quote.quoted_rate_per_mile, overridden, postedRate, req.user?.id
       ]);
 
@@ -894,7 +892,6 @@ apiRouter.patch('/bookings/:id/complete', authenticate, async (req: Authenticate
 
       const feePct = cfg['fee_pct'] ?? 0.07;
       const factorPct = cfg['factor_pct'] ?? 0.03;
-      const fuelRate = cfg['fuel_rate_per_mile'] ?? 0.45;
 
       // Check if driver opted into same-day funding
       const drvPayRes = await tx.query<any>('SELECT same_day_funding_opt_in FROM driver_payment_accounts WHERE driver_id = $1', [booking.driver_id]);
@@ -905,22 +902,21 @@ apiRouter.patch('/bookings/:id/complete', authenticate, async (req: Authenticate
       const ratePerMile = parseFloat(load.rate_per_mile);
       const grossAmount = miles * ratePerMile;
       const feeAmount = grossAmount * feePct;
-      const fuelCost = miles * fuelRate;
       const factorCost = factored ? grossAmount * factorPct : 0;
-      const netAmount = grossAmount - feeAmount - fuelCost - factorCost;
+      const netAmount = grossAmount - feeAmount - factorCost;
 
       const settlementId = newId('STL');
       const settledAt = new Date().toISOString();
 
       await tx.query(`
         INSERT INTO settlements (
-          id, booking_id, load_id, miles, rate_per_mile, fuel_rate_per_mile,
-          gross_amount, fee_amount, fee_pct_applied, fuel_cost, factor_cost, factored, net_amount, settled_at
+          id, booking_id, load_id, miles, rate_per_mile,
+          gross_amount, fee_amount, fee_pct_applied, factor_cost, factored, net_amount, settled_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
       `, [
-        settlementId, booking.id, load.id, miles, ratePerMile, fuelRate,
-        grossAmount, feeAmount, feePct, fuelCost, factorCost, factored, netAmount, settledAt
+        settlementId, booking.id, load.id, miles, ratePerMile,
+        grossAmount, feeAmount, feePct, factorCost, factored, netAmount, settledAt
       ]);
 
       await tx.query('UPDATE bookings SET status = \'completed\', delivered_at = $1 WHERE id = $2', [settledAt, booking.id]);
@@ -1234,13 +1230,12 @@ apiRouter.get('/settlements', async (req, res) => {
 apiRouter.get('/settlements/aggregate', async (req, res) => {
   try {
     const rows = await db.as({ role: 'anon' }).query<Record<string, any>>('SELECT * FROM settlement_totals_view');
-    const totals: Record<string, any> = rows.rows[0] || { count: 0, miles: 0, gross: 0, fee: 0, fuel: 0, factor: 0, net: 0 };
+    const totals: Record<string, any> = rows.rows[0] || { count: 0, miles: 0, gross: 0, fee: 0, factor: 0, net: 0 };
     res.json({
       count: parseInt(String(totals.count || '0'), 10),
       miles: parseFloat(String(totals.miles || '0')),
       gross: parseFloat(String(totals.gross || '0')),
       fee: parseFloat(String(totals.fee || '0')),
-      fuel: parseFloat(String(totals.fuel || '0')),
       factor: parseFloat(String(totals.factor || '0')),
       net: parseFloat(String(totals.net || '0'))
     });
@@ -1476,8 +1471,8 @@ apiRouter.get('/admin/export', authenticate, requireRole('admin'), async (req: A
       SELECT 
         s.id, s.booking_id, s.load_id,
         l.origin_city, l.origin_state, l.dest_city, l.dest_state, l.equipment_type,
-        s.miles, s.rate_per_mile, s.fuel_rate_per_mile,
-        s.gross_amount, s.fee_amount, s.fuel_cost, s.factor_cost, s.factored, s.net_amount, s.settled_at
+        s.miles, s.rate_per_mile,
+        s.gross_amount, s.fee_amount, s.factor_cost, s.factored, s.net_amount, s.settled_at
       FROM settlements s
       JOIN loads l ON s.load_id = l.id
       ORDER BY s.settled_at DESC
@@ -1485,8 +1480,8 @@ apiRouter.get('/admin/export', authenticate, requireRole('admin'), async (req: A
 
     const headers = [
       'settlement_id', 'booking_id', 'load_id', 'origin', 'destination', 'equipment',
-      'miles', 'rate_per_mile', 'fuel_rate_per_mile', 'gross_amount', 'fee_amount',
-      'fuel_cost', 'factor_cost', 'factored', 'net_amount', 'settled_at'
+      'miles', 'rate_per_mile', 'gross_amount', 'fee_amount',
+      'factor_cost', 'factored', 'net_amount', 'settled_at'
     ];
 
     let csvContent = headers.join(',') + '\n';
@@ -1494,8 +1489,8 @@ apiRouter.get('/admin/export', authenticate, requireRole('admin'), async (req: A
       const line = [
         r.id, r.booking_id, r.load_id,
         `"${r.origin_city}, ${r.origin_state}"`, `"${r.dest_city}, ${r.dest_state}"`, r.equipment_type,
-        r.miles, r.rate_per_mile, r.fuel_rate_per_mile,
-        r.gross_amount, r.fee_amount, r.fuel_cost, r.factor_cost, r.factored, r.net_amount, r.settled_at
+        r.miles, r.rate_per_mile,
+        r.gross_amount, r.fee_amount, r.factor_cost, r.factored, r.net_amount, r.settled_at
       ];
       csvContent += line.join(',') + '\n';
     });
@@ -1519,7 +1514,6 @@ const rateCardPatchSchema = z.object({
   minimum_charge: z.number().min(0).optional(),
   short_haul_minimum_charge: z.number().min(0).nullable().optional(),
   deadhead_buffer_pct: z.number().min(0).max(1).optional(),
-  fuel_mpg: z.number().positive().optional(),
   express_surcharge_pct: z.number().min(0).max(1).optional()
 });
 
@@ -1539,25 +1533,6 @@ apiRouter.patch('/admin/rate-cards/:key', authenticate, requireRole('admin'), as
     );
     if (!updated.rowCount) return res.status(404).json({ error: 'Rate card not found' });
     res.json({ card: cardFromRow(updated.rows[0]) });
-  } catch (err: any) {
-    sendError(res, err);
-  }
-});
-
-apiRouter.post('/admin/diesel', authenticate, requireRole('admin'), async (req: AuthenticatedRequest, res) => {
-  try {
-    const body = z.object({
-      dollars_per_gallon: z.number().positive().lt(20),
-      source: z.string().min(1).max(40).optional().default('admin')
-    }).parse(req.body);
-    const id = newId('dsl');
-    await scoped(req).query(
-      `INSERT INTO diesel_prices (id, dollars_per_gallon, source, recorded_by)
-       VALUES ($1, $2, $3, $4)`,
-      [id, body.dollars_per_gallon, body.source, req.user?.id]
-    );
-    const catalog = await loadRateCatalog(scoped(req));
-    res.status(201).json({ id, diesel_ppg: catalog.diesel_ppg });
   } catch (err: any) {
     sendError(res, err);
   }

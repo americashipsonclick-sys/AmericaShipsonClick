@@ -32,7 +32,6 @@ export function cardFromRow(row: Record<string, unknown>): RateCard {
     minimum_charge: n(row.minimum_charge),
     short_haul_minimum_charge: nNull(row.short_haul_minimum_charge),
     deadhead_buffer_pct: n(row.deadhead_buffer_pct),
-    fuel_mpg: n(row.fuel_mpg),
     express_surcharge_pct: n(row.express_surcharge_pct)
   };
 }
@@ -47,22 +46,17 @@ export interface AccessorialFee {
 export interface RateCatalog {
   cards: RateCard[];
   accessorials: AccessorialFee[];
-  diesel_ppg: number;
-  diesel_base_ppg: number;
   quote_gross_pct: number;
   default_demand_multiplier: number;
 }
 
 export async function loadRateCatalog(db: Queryable): Promise<RateCatalog> {
-  const [cards, fees, diesel, config] = await Promise.all([
+  const [cards, fees, config] = await Promise.all([
     db.query(`SELECT * FROM equipment_rate_cards ORDER BY sort_order`),
     db.query(`SELECT code, label, amount, description FROM accessorial_fees ORDER BY code`),
-    db.query<{ dollars_per_gallon: string }>(
-      `SELECT dollars_per_gallon FROM diesel_prices ORDER BY effective_at DESC LIMIT 1`
-    ),
     db.query<{ key: string; value: string }>(
       `SELECT key, value FROM platform_config WHERE key IN
-        ('quote_gross_pct', 'diesel_base_ppg', 'default_demand_multiplier')`
+        ('quote_gross_pct', 'default_demand_multiplier')`
     )
   ]);
 
@@ -77,8 +71,6 @@ export async function loadRateCatalog(db: Queryable): Promise<RateCatalog> {
       amount: n(r.amount),
       description: r.description ? String(r.description) : undefined
     })),
-    diesel_ppg: n(diesel.rows[0]?.dollars_per_gallon, 3.82),
-    diesel_base_ppg: cfg.diesel_base_ppg ?? 3.50,
     quote_gross_pct: cfg.quote_gross_pct ?? 0.07,
     default_demand_multiplier: cfg.default_demand_multiplier ?? 1
   };
@@ -110,8 +102,6 @@ export async function quoteFor(
     demand_multiplier: input.demand_multiplier ?? catalog.default_demand_multiplier,
     express: Boolean(input.express),
     accessorials,
-    diesel_ppg: catalog.diesel_ppg,
-    diesel_base_ppg: catalog.diesel_base_ppg,
     quote_gross_pct: catalog.quote_gross_pct
   });
 

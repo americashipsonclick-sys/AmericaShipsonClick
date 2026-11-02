@@ -5,31 +5,29 @@ Every number the public ledger publishes is decided in one place: the
 [`backend/routes.ts:504`](../backend/routes.ts). Nothing the browser sends
 is trusted to price a load. The request body for that endpoint is empty — the
 route reads the booking, the load, and the current rates for itself, computes
-gross, fee, fuel, factor, and net, and writes a settlement row that the database
+gross, fee, factor, and net, and writes a settlement row that the database
 then refuses to let anyone change. A driver can no more talk the server into a
 larger payout than a shipper can talk it into a smaller one, because neither of
 them is asked.
 
-## The four numbers
+## The numbers
 
-A settlement is four subtractions off one product:
+A settlement is two subtractions off one product:
 
 ```
 gross  = miles x rate_per_mile
 fee    = gross x fee_pct                 platform's cut
-fuel   = miles x fuel_rate_per_mile      modeled cost of running the lane
 factor = gross x factor_pct  (or 0)      cost of same-day funding
-net    = gross - fee - fuel - factor     what the carrier takes home
+net    = gross - fee - factor            what the carrier takes home
 ```
 
-Fee and factor scale with the money; fuel scales with the distance. That
-distinction matters more than it looks, and it is where the previews go wrong —
-see [What the estimates leave out](#what-the-estimates-leave-out).
+Both deductions scale with the money. The settlement used to subtract a modeled
+fuel cost as well; [`0023_drop_fuel.sql`](../database/migrations/0023_drop_fuel.sql)
+removed it and added it back into every past row's net.
 
 ## Where the rates come from
 
-`fee_pct` (0.07), `factor_pct` (0.03), `fuel_rate_per_mile` (0.45), and
-`broker_comparison_pct` (0.20) are rows in `platform_config`, seeded by
+`fee_pct` (0.07), `factor_pct` (0.03), and `broker_comparison_pct` (0.20) are rows in `platform_config`, seeded by
 [`0001_initial_schema.sql:171`](../database/migrations/0001_initial_schema.sql).
 `fee_pct` started at 0.05 and was raised to 0.07 by
 [`0021_platform_fee_7pct.sql`](../database/migrations/0021_platform_fee_7pct.sql).
@@ -40,7 +38,7 @@ Both the server and the browser read them from the same table — the browser vi
 `GET /api/config` ([`routes.ts:90`](../backend/routes.ts)), the settlement
 path via a direct `SELECT` inside its own transaction
 ([`routes.ts:538`](../backend/routes.ts)). Every read site carries the same
-`?? 0.07` / `?? 0.03` / `?? 0.45` fallbacks, so a missing config row degrades to
+`?? 0.07` / `?? 0.03` fallbacks, so a missing config row degrades to
 the seeded defaults instead of writing `NaN` into the ledger. The fallbacks are
 written out four times across `routes.ts`, `seed.ts`, `FindLoads.tsx`, and
 `PostLoad.tsx`; they agree today, and nothing enforces that they keep agreeing.
@@ -51,7 +49,7 @@ for the "20% broker vs 7% us" comparison the marketing copy makes by hand.
 
 ## Rates are copied onto the row, not referenced
 
-`settlements` stores `fee_pct_applied` and `fuel_rate_per_mile` alongside the
+`settlements` stores `fee_pct_applied` alongside the
 dollar amounts. This is deliberate duplication. If the ledger stored only dollar
 figures and the platform later moved the fee to 6%, every historical row would
 still be correct but unexplainable; if it stored a foreign key to
@@ -81,38 +79,30 @@ for the carrier, whose cash-flow needs do not change lane by lane, but it means
 the shipper's own preview of the factor line is a guess about someone else's
 settings.
 
-## What the estimates leave out
+## The estimates match the ledger
 
-Three places in the product show a carrier's take-home, and only one of them is
-the ledger:
+Three places in the product show a carrier's take-home, and all of them use the
+ledger's formula through `settlementPreview`
+([`frontend/src/lib/settlementPreview.ts`](../frontend/src/lib/settlementPreview.ts)):
 
 | Where | Formula | 780 mi @ $2.15 |
 | --- | --- | --- |
-| Load board card ([`FindLoads.tsx:169`](../frontend/src/pages/FindLoads.tsx)) | `gross - fee` | **$1,559.61** |
-| Post-a-load calculator ([`PostLoad.tsx:43`](../frontend/src/pages/PostLoad.tsx)) | `gross - fee - factor` | **$1,559.61** (or $1,509.30 with quick pay) |
-| Settlement ([`routes.ts:555`](../backend/routes.ts)) | `gross - fee - fuel - factor` | **$1,208.61** (or $1,158.30 factored) |
+| Load board card ([`FindLoads.tsx`](../frontend/src/pages/FindLoads.tsx)) | `gross - fee - factor` | **$1,559.61** (or $1,509.30 with quick pay) |
+| Post-a-load calculator ([`PostLoad.tsx`](../frontend/src/pages/PostLoad.tsx)) | `gross - fee - factor` | **$1,559.61** (or $1,509.30 with quick pay) |
+| Settlement ([`routes.ts`](../backend/routes.ts)) | `gross - fee - factor` | **$1,559.61** (or $1,509.30 factored) |
 
-Neither preview subtracts fuel. On that lane the gap is $351.00 — 23% of the
-figure on the board card, and three times the platform fee the card draws
-attention to. A driver books expecting $1,560 and settles at $1,209.
-
-This is a presentation gap, not a math bug: the ledger row is right, the board
-card is answering a narrower question ("what does the platform keep?") with a
-label that reads like the broader one ("take-home pay"). Whether fuel belongs in
-a driver-facing estimate is a product decision — a carrier who runs a
-$0.38/mile truck is not losing $0.45/mile — but the two figures should not both
-be called take-home. The calculator's copy also promises the 7% fee is the whole
-story, which the settled row contradicts by three times that amount.
+The one figure a preview can get wrong is the factor line, since the driver's
+own quick-pay setting decides it at settlement (see above).
 
 ## The database's own opinion of the arithmetic
 
 Application code can be wrong. `settlements_math_balances`
-([`0002_security.sql:143`](../database/migrations/0002_security.sql)) makes the
+([`0023_drop_fuel.sql`](../database/migrations/0023_drop_fuel.sql)) makes the
 wrong answer unwritable:
 
 ```sql
 CHECK (
-  abs(net_amount - (gross_amount - fee_amount - fuel_cost - factor_cost)) < 0.01
+  abs(net_amount - (gross_amount - fee_amount - factor_cost)) < 0.01
   AND abs(gross_amount - (miles * rate_per_mile)) < 0.01
 )
 ```

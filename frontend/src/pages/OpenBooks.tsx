@@ -24,7 +24,6 @@ export const OpenBooks: React.FC = () => {
   const miles = totals?.miles ?? 0;
   const gross = totals?.gross ?? 0;
   const fee = totals?.fee ?? 0;
-  const fuel = totals?.fuel ?? 0;
   const factor = totals?.factor ?? 0;
   const net = totals?.net ?? 0;
 
@@ -38,7 +37,6 @@ export const OpenBooks: React.FC = () => {
   const donutSegs = [
     { label: 'Paid to carriers', val: net, color: '#0F5132' },
     { label: 'Platform fee', val: fee, color: '#E3A008' },
-    { label: 'Fuel cost', val: fuel, color: '#545B62' },
     { label: 'Same-day funding', val: factor, color: '#8C2F1B' }
   ];
 
@@ -190,20 +188,19 @@ export const OpenBooks: React.FC = () => {
                 <th>Miles</th>
                 <th>Rate / mi</th>
                 <th>Platform Fee</th>
-                <th>Fuel Cost</th>
                 <th>Net to Carrier</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-8 font-mono text-[#5B6168]">
+                  <td colSpan={5} className="text-center py-8 font-mono text-[#5B6168]">
                     Loading public settlement ledger...
                   </td>
                 </tr>
               ) : settlements.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="text-center py-8 font-mono text-[#5B6168]">
+                  <td colSpan={5} className="text-center py-8 font-mono text-[#5B6168]">
                     No settlements recorded yet.
                   </td>
                 </tr>
@@ -218,7 +215,6 @@ export const OpenBooks: React.FC = () => {
                       <td>{Number(s.miles).toLocaleString()}</td>
                       <td>${Number(s.rate_per_mile).toFixed(2)}</td>
                       <td className="text-[#8C2F1B] font-bold">${Number(s.fee_amount).toFixed(2)}</td>
-                      <td>${Number(s.fuel_cost).toFixed(2)}</td>
                       <td className="text-[#0F5132] font-black text-sm">
                         ${Number(s.net_amount).toFixed(2)}
                         {s.factored && (

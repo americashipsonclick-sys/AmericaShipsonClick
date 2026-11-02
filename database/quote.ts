@@ -36,7 +36,6 @@ export interface RateCard {
   minimum_charge: number;
   short_haul_minimum_charge: number | null;
   deadhead_buffer_pct: number;
-  fuel_mpg: number;
   express_surcharge_pct: number;
 }
 
@@ -52,8 +51,6 @@ export interface QuoteParams {
   demand_multiplier: number;
   express: boolean;
   accessorials: QuoteAccessorial[];
-  diesel_ppg: number;
-  diesel_base_ppg: number;
   quote_gross_pct: number;
 }
 
@@ -71,11 +68,6 @@ export interface QuoteBreakdown {
   deadhead_from_miles: number;
   deadhead_from_buffer: number;
   deadhead_amount: number;
-  diesel_ppg: number;
-  diesel_base_ppg: number;
-  fuel_mpg: number;
-  fuel_surcharge_per_mile: number;
-  fuel_surcharge: number;
   accessorials: QuoteAccessorial[];
   accessorials_amount: number;
   demand_multiplier: number;
@@ -107,9 +99,6 @@ export function computeQuote(card: RateCard, params: QuoteParams): QuoteBreakdow
   const deadheadMiles = Math.max(0, num(params.deadhead_miles));
   const demand = Math.max(0.01, num(params.demand_multiplier, 1));
   const grossPct = Math.max(0, num(params.quote_gross_pct));
-  const diesel = Math.max(0, num(params.diesel_ppg));
-  const dieselBase = Math.max(0, num(params.diesel_base_ppg));
-  const mpg = Math.max(0.1, num(card.fuel_mpg, 6.5));
 
   const shortUnder = card.short_haul_under_miles == null ? null : num(card.short_haul_under_miles);
   const shortHaul = shortUnder != null && miles > 0 && miles < shortUnder;
@@ -133,9 +122,6 @@ export function computeQuote(card: RateCard, params: QuoteParams): QuoteBreakdow
   const deadheadFromBuffer = money(linehaul * num(card.deadhead_buffer_pct));
   const deadheadAmount = money(Math.max(deadheadFromMiles, deadheadFromBuffer));
 
-  const fuelPerMile = rpm(Math.max(0, diesel - dieselBase) / mpg);
-  const fuelSurcharge = money(miles * fuelPerMile);
-
   const accessorials = params.accessorials.map(a => ({
     code: a.code,
     label: a.label,
@@ -143,7 +129,7 @@ export function computeQuote(card: RateCard, params: QuoteParams): QuoteBreakdow
   }));
   const accessorialsAmount = money(accessorials.reduce((s, a) => s + a.amount, 0));
 
-  const preMult = money(Math.max(0, linehaul + deadheadAmount + fuelSurcharge + accessorialsAmount));
+  const preMult = money(Math.max(0, linehaul + deadheadAmount + accessorialsAmount));
   const afterDemand = money(preMult * demand);
   const expressPct = params.express ? Math.max(0, num(card.express_surcharge_pct)) : 0;
   const afterExpress = money(afterDemand * (1 + expressPct));
@@ -165,11 +151,6 @@ export function computeQuote(card: RateCard, params: QuoteParams): QuoteBreakdow
     deadhead_from_miles: deadheadFromMiles,
     deadhead_from_buffer: deadheadFromBuffer,
     deadhead_amount: deadheadAmount,
-    diesel_ppg: diesel,
-    diesel_base_ppg: dieselBase,
-    fuel_mpg: mpg,
-    fuel_surcharge_per_mile: fuelPerMile,
-    fuel_surcharge: fuelSurcharge,
     accessorials,
     accessorials_amount: accessorialsAmount,
     demand_multiplier: demand,

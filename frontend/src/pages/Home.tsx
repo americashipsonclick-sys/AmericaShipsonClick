@@ -207,10 +207,6 @@ export const Home: React.FC<HomeProps> = ({ currentUser, onOpenAuth, setActiveTa
                   <span>PLATFORM FEE ({pctLabel(Number(topSettlement.fee_pct_applied) || sample.feePct)}):</span>
                   <span>&minus; {usd(Number(topSettlement.fee_amount || 0))}</span>
                 </div>
-                <div className="flex justify-between border-b border-dashed border-[#14171A]/20 py-1 text-[#3E444A]">
-                  <span>MODELED FUEL:</span>
-                  <span>{usd(Number(topSettlement.fuel_cost || 0))}</span>
-                </div>
 
                 <div className="pt-4">
                   <div className="flex justify-between items-end">
@@ -258,7 +254,7 @@ export const Home: React.FC<HomeProps> = ({ currentUser, onOpenAuth, setActiveTa
             <span className="eyebrow block mb-1">The Financial Math</span>
             <h2 className="text-3xl sm:text-4xl mb-3">Same load. Two ways to get paid.</h2>
             <p className="text-[#5B6168] font-sans text-xs sm:text-sm">
-              A dry van load: Dallas, TX to Atlanta, GA. 780 miles at $2.15/mile. The {feePctLabel} fee is the platform cut; ledger net also subtracts modeled fuel.
+              A dry van load: Dallas, TX to Atlanta, GA. 780 miles at $2.15/mile. The {feePctLabel} fee is the platform cut.
             </p>
           </div>
 
@@ -292,10 +288,6 @@ export const Home: React.FC<HomeProps> = ({ currentUser, onOpenAuth, setActiveTa
               <div className="receipt-line">
                 <span>Platform fee ({feePctLabel})</span>
                 <span className="text-[#8C2F1B]">&minus;{usd(sample.fee)}</span>
-              </div>
-              <div className="receipt-line text-[#5B6168]">
-                <span>Modeled fuel (${sample.fuelRate.toFixed(2)}/mi)</span>
-                <span>&minus;{usd(sample.fuel)}</span>
               </div>
               <div className="receipt-line font-bold text-[#0F5132]">
                 <span>Posted to Open Books</span>

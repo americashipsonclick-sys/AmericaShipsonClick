@@ -11,7 +11,6 @@ function num(v: string, fallback: number): number {
 
 export const RateCardsAdmin: React.FC = () => {
   const queryClient = useQueryClient();
-  const [diesel, setDiesel] = useState('');
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -35,16 +34,6 @@ export const RateCardsAdmin: React.FC = () => {
     onError: (err: Error) => setError(err.message)
   });
 
-  const saveDiesel = useMutation({
-    mutationFn: (ppg: number) => api.postDiesel(ppg),
-    onSuccess: (d) => {
-      queryClient.invalidateQueries({ queryKey: ['rates'] });
-      setMessage(`Diesel index is now $${d.diesel_ppg.toFixed(2)}/gal.`);
-      setDiesel('');
-      setError(null);
-    },
-    onError: (err: Error) => setError(err.message)
-  });
 
   const saveAccessorial = useMutation({
     mutationFn: ({ code, amount }: { code: string; amount: number }) => api.patchAccessorial(code, amount),
@@ -73,37 +62,6 @@ export const RateCardsAdmin: React.FC = () => {
         <div className="p-3 bg-[#8C2F1B]/10 border border-[#8C2F1B] text-[#8C2F1B] font-mono text-xs">{error}</div>
       )}
 
-      <form
-        className="flex flex-wrap items-end gap-3 bg-[#FAFAF7] border border-[#E4DCC4] p-4"
-        onSubmit={(e) => {
-          e.preventDefault();
-          const ppg = num(diesel, 0);
-          if (ppg <= 0) return;
-          saveDiesel.mutate(ppg);
-        }}
-      >
-        <div>
-          <label className="block text-[0.7rem] font-mono font-bold uppercase text-[#5B6168] mb-1">
-            Diesel $/gallon (now {catalog ? usd(catalog.diesel_ppg) : '—'})
-          </label>
-          <input
-            type="number"
-            step="0.01"
-            min={0.01}
-            value={diesel}
-            onChange={(e) => setDiesel(e.target.value)}
-            placeholder="3.82"
-            className="p-2 bg-[#F0EAD8] border border-[#E4DCC4] font-mono text-sm w-32"
-          />
-        </div>
-        <button type="submit" className="btn amber text-xs py-2" disabled={saveDiesel.isPending}>
-          Record diesel
-        </button>
-        <p className="text-[0.7rem] font-mono text-[#5B6168]">
-          Fuel surcharge = max(0, diesel − ${Number(catalog?.diesel_base_ppg ?? 3.5).toFixed(2)}) / MPG
-        </p>
-      </form>
-
       <div className="overflow-x-auto border border-[#E4DCC4]">
         <table className="w-full text-left font-mono text-[0.72rem]">
           <thead className="bg-[#14171A] text-[#FAFAF7]">
@@ -115,7 +73,6 @@ export const RateCardsAdmin: React.FC = () => {
               <th className="p-2">Floor $</th>
               <th className="p-2">Short mi / $</th>
               <th className="p-2">Deadhead %</th>
-              <th className="p-2">MPG</th>
               <th className="p-2"></th>
             </tr>
           </thead>
@@ -197,7 +154,6 @@ const RateCardRow: React.FC<{
   const [shortMiles, setShortMiles] = useState(card.short_haul_under_miles == null ? '' : String(card.short_haul_under_miles));
   const [shortMin, setShortMin] = useState(card.short_haul_minimum_charge == null ? '' : String(card.short_haul_minimum_charge));
   const [deadhead, setDeadhead] = useState(String(card.deadhead_buffer_pct));
-  const [mpg, setMpg] = useState(String(card.fuel_mpg));
 
   return (
     <tr className="border-t border-[#E4DCC4] bg-[#FAFAF7]">
@@ -216,7 +172,6 @@ const RateCardRow: React.FC<{
         </div>
       </td>
       <td className="p-1"><input className="w-14 p-1 bg-white border border-[#E4DCC4]" value={deadhead} onChange={e => setDeadhead(e.target.value)} /></td>
-      <td className="p-1"><input className="w-14 p-1 bg-white border border-[#E4DCC4]" value={mpg} onChange={e => setMpg(e.target.value)} /></td>
       <td className="p-1">
         <button
           type="button"
@@ -229,8 +184,7 @@ const RateCardRow: React.FC<{
             minimum_charge: num(floor, card.minimum_charge),
             short_haul_under_miles: shortMiles === '' ? null : num(shortMiles, 0),
             short_haul_minimum_charge: shortMin === '' ? null : num(shortMin, 0),
-            deadhead_buffer_pct: num(deadhead, card.deadhead_buffer_pct),
-            fuel_mpg: num(mpg, card.fuel_mpg)
+            deadhead_buffer_pct: num(deadhead, card.deadhead_buffer_pct)
           })}
         >
           Save

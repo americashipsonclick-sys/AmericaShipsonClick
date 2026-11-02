@@ -20,9 +20,7 @@ export interface PlatformConfig {
   fee_pct: number;
   factor_pct: number;
   broker_comparison_pct: number;
-  fuel_rate_per_mile: number;
   quote_gross_pct?: number;
-  diesel_base_ppg?: number;
 }
 
 export interface RateCard {
@@ -39,7 +37,6 @@ export interface RateCard {
   minimum_charge: number;
   short_haul_minimum_charge: number | null;
   deadhead_buffer_pct: number;
-  fuel_mpg: number;
   express_surcharge_pct: number;
 }
 
@@ -53,8 +50,6 @@ export interface AccessorialFee {
 export interface RateCatalog {
   cards: RateCard[];
   accessorials: AccessorialFee[];
-  diesel_ppg: number;
-  diesel_base_ppg: number;
   quote_gross_pct: number;
   default_demand_multiplier: number;
 }
@@ -73,11 +68,6 @@ export interface QuoteBreakdown {
   deadhead_from_miles: number;
   deadhead_from_buffer: number;
   deadhead_amount: number;
-  diesel_ppg: number;
-  diesel_base_ppg: number;
-  fuel_mpg: number;
-  fuel_surcharge_per_mile: number;
-  fuel_surcharge: number;
   accessorials: { code: string; label: string; amount: number }[];
   accessorials_amount: number;
   demand_multiplier: number;
@@ -257,11 +247,9 @@ export interface PublicLedgerItem {
   equipment_type: EquipmentType;
   miles: number;
   rate_per_mile: number;
-  fuel_rate_per_mile: number;
   gross_amount: number;
   fee_amount: number;
   fee_pct_applied: number;
-  fuel_cost: number;
   factor_cost: number;
   factored: boolean;
   net_amount: number;
@@ -273,7 +261,6 @@ export interface SettlementTotals {
   miles: number;
   gross: number;
   fee: number;
-  fuel: number;
   factor: number;
   net: number;
 }
