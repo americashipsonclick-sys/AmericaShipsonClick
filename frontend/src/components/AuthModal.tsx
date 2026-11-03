@@ -19,6 +19,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
   const [isSignup, setIsSignup] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [role, setRole] = useState<UserRole>('driver');
   const [name, setName] = useState('');
   const [companyName, setCompanyName] = useState('');
@@ -228,16 +229,27 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
             <label className="block text-xs font-mono font-bold uppercase text-[#5B6168] mb-1">
               Password
             </label>
-            <input
-              type="password"
-              required
-              minLength={6}
-              autoComplete={isSignup ? 'new-password' : 'current-password'}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder="At least 6 characters"
-              className="w-full p-2.5 bg-[#F0EAD8] border border-[#E4DCC4] rounded text-sm"
-            />
+            <div className="relative">
+              <input
+                type={showPassword ? 'text' : 'password'}
+                required
+                minLength={6}
+                autoComplete={isSignup ? 'new-password' : 'current-password'}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder="At least 6 characters"
+                className="w-full p-2.5 pr-16 bg-[#F0EAD8] border border-[#E4DCC4] rounded text-sm"
+              />
+              <button
+                type="button"
+                onClick={() => setShowPassword((v) => !v)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
+                aria-pressed={showPassword}
+                className="absolute inset-y-0 right-0 px-3 text-[0.7rem] font-mono font-bold uppercase text-[#5B6168] hover:text-[#14171A]"
+              >
+                {showPassword ? 'Hide' : 'Show'}
+              </button>
+            </div>
           </div>
 
           <div className="absolute left-[-9999px] h-0 w-0 overflow-hidden" aria-hidden="true">
