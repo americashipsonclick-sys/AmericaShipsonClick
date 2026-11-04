@@ -20,7 +20,8 @@
     "db:status": "tsx database/cli.ts status",
     "db:reset": "tsx database/cli.ts reset",
     "db:ping": "tsx database/cli.ts ping",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.4",

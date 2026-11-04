@@ -10,6 +10,8 @@ erDiagram
     
     shipper_profiles ||--o{ loads : "1:N"
     
+    loads ||--o{ load_photos : "1:N"
+    uploaded_files ||--o| load_photos : "1:1"
     loads ||--o{ bookings : "1:N"
     loads ||--o{ settlements : "1:N"
     
@@ -84,6 +86,30 @@ erDiagram
         string notes
         boolean same_day_funding_offered
         enum status "open | booked | in_transit | delivered | cancelled"
+        string load_type "nullable full_truckload | partial"
+        string pickup_appt_start "nullable HH:MM"
+        string pickup_dock "nullable"
+        string delivery_date "nullable"
+        integer pallets "nullable"
+        string commodity "nullable"
+        boolean hazmat "null means not stated"
+        boolean requires_twic
+        string payment_terms "nullable"
+    }
+
+    load_photos {
+        string id PK
+        string load_id FK
+        string file_id FK
+        string caption "nullable"
+        timestamp created_at
+    }
+
+    uploaded_files {
+        string id PK
+        string content_type
+        integer size_bytes
+        bytes data
     }
 
     bookings {

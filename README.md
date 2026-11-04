@@ -241,6 +241,14 @@ allowlist (PNG/JPEG/WebP/PDF, 10 MB cap), and served with
 `Content-Disposition: attachment`, `X-Content-Type-Options: nosniff`, and a
 `sandbox` CSP — so an uploaded file cannot execute in the app's origin.
 
+Freight photos share the same Postgres storage but not the public path. They are
+limited to JPEG/PNG/WebP (checked against the file's own bytes), 5 MB and three
+per load, and can only change while the load is open. The bytes are served by
+`GET /api/loads/:id/photos/:photoId` to the shipper who posted the load, an admin,
+and drivers while it is open or once they hold a booking on it. The browser shrinks
+each photo to 1600px before upload, which also strips its metadata, including any
+location.
+
 ### What this does not cover
 
 No CSP on the application HTML itself (Vite's dev server needs inline scripts),
@@ -261,6 +269,7 @@ one unauthenticated request away.
 
 | Command | What it does |
 | --- | --- |
+| `npm test` | Runs the tests in `tests/` against the real migrations |
 | `npm run db:status` | Shows the connection target and which migrations are applied |
 | `npm run db:migrate` | Applies pending migrations |
 | `npm run db:seed` | Seeds demo data (only into an empty database, unless `--force`) |
@@ -340,10 +349,13 @@ JWT_SECRET="americashipsonclick_secret_jwt_key_2026"
 - `GET /api/auth/me` — Authenticated user details & profile
 
 ### 3. Freight Loads
-- `GET /api/loads` — Search & filter open loads (origin, destination, equipment, min rate). Drivers and admins only
-- `GET /api/loads/:id` — Load details. Drivers, admins, or the shipper who posted it
+- `GET /api/loads` — Search & filter open loads (origin, destination, equipment, min rate, pickup date). Drivers and admins only
+- `GET /api/loads/:id` — Load details, public shipper facts and the photo list. Drivers, admins, or the shipper who posted it
 - `GET /api/shipper/loads` — The signed-in shipper's own loads, every status
-- `POST /api/loads` — Shipper posts a new load
+- `POST /api/loads` — Shipper posts a new load, with optional appointment, dock, freight and payment-terms details
+- `POST /api/loads/:id/photos` — Shipper adds a freight photo (multipart field `photo`, optional `caption`) while the load is open
+- `GET /api/loads/:id/photos/:photoId` — The photo's bytes, for the audience above
+- `DELETE /api/loads/:id/photos/:photoId` — Shipper removes a freight photo while the load is open
 
 ### 4. Bookings & Settlements
 - `POST /api/bookings` — Driver books open load (transactionally locked)
@@ -379,7 +391,7 @@ JWT_SECRET="americashipsonclick_secret_jwt_key_2026"
 
 ### Main Tables:
 - Identity: `users`, `driver_profiles`, `driver_documents`, `driver_equipment`, `driver_payment_accounts`, `shipper_profiles`, `verification_reviews`
-- Freight: `loads`, `bookings`, `booking_locations`, `load_events`, `load_offers`, `settlements`, `settlement_disputes`, `settlement_adjustments`, `platform_config`
+- Freight: `loads`, `load_photos`, `bookings`, `booking_locations`, `load_events`, `load_offers`, `settlements`, `settlement_disputes`, `settlement_adjustments`, `platform_config`
 - Phase 1 token: `wallets`, `chain_contracts`, `webhook_receipts`, `contract_events`, `token_buys`, `token_positions`, `app_memberships`, `premium_attestations`, `hourly_epochs`, `transaction_reserves`, `hourly_claims`, `driver_payouts`
 - Phase 2 (empty): `haul_receipts`
 - Ops: `ratings`, `notifications`, `audit_log`, `refresh_tokens`, `schema_migrations`

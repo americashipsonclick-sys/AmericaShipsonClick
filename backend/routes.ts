@@ -43,6 +43,28 @@ const upload = multer({
   }
 });
 
+// Freight photos: images only, and the app shrinks them in the browser first,
+// so a limit well under the document one still takes a phone photo.
+const photoUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024, files: 1 },
+  fileFilter: (req, file, cb) => {
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.mimetype)) {
+      cb(new HttpError(415, 'Photos must be JPEG, PNG or WebP.'));
+      return;
+    }
+    cb(null, true);
+  }
+});
+
+/** The real image type from the file's first bytes; the declared one is the client's word. */
+function sniffImageType(data: Buffer): string | null {
+  if (data.length >= 3 && data[0] === 0xff && data[1] === 0xd8 && data[2] === 0xff) return 'image/jpeg';
+  if (data.length >= 8 && data.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))) return 'image/png';
+  if (data.length >= 12 && data.toString('latin1', 0, 4) === 'RIFF' && data.toString('latin1', 8, 12) === 'WEBP') return 'image/webp';
+  return null;
+}
+
 // Real-time SSE subscriber connections
 const sseClients: Response[] = [];
 
@@ -568,7 +590,7 @@ apiRouter.get('/shipper/loads', authenticate, requireRole('shipper'), async (req
 // admin may ask for other statuses.
 apiRouter.get('/loads', authenticate, requireRole('driver', 'admin'), async (req: AuthenticatedRequest, res) => {
   try {
-    const { origin, destination, equipment, minRate, page = '1', limit = '50' } = req.query;
+    const { origin, destination, equipment, minRate, pickupDate, page = '1', limit = '50' } = req.query;
     const status = req.user?.role === 'admin' ? (req.query.status ?? 'open') : 'open';
 
     // Joins the public projection, not shipper_profiles: that table holds
@@ -606,6 +628,11 @@ apiRouter.get('/loads', authenticate, requireRole('driver', 'admin'), async (req
       query += ` AND l.rate_per_mile >= $${params.length}`;
     }
 
+    if (pickupDate) {
+      params.push(String(pickupDate));
+      query += ` AND l.pickup_date = $${params.length}`;
+    }
+
     query += ` ORDER BY l.created_at DESC`;
 
     const offset = (parseInt(page as string, 10) - 1) * parseInt(limit as string, 10);
@@ -625,17 +652,134 @@ apiRouter.get('/loads', authenticate, requireRole('driver', 'admin'), async (req
 // shipper's load answers 404 so ids cannot be probed.
 apiRouter.get('/loads/:id', authenticate, requireRole('driver', 'shipper', 'admin'), async (req: AuthenticatedRequest, res) => {
   try {
-    const result = await scoped(req).query('SELECT * FROM loads WHERE id = $1', [req.params.id]);
+    const party = await tripParty(req);
+    const result = await party.db.query<any>(`
+      SELECT l.*, s.company_name AS shipper_name, s.member_since AS shipper_member_since,
+             s.loads_posted AS shipper_loads_posted
+      FROM loads l
+      JOIN public_shipper_view s ON l.shipper_id = s.id
+      WHERE l.id = $1
+    `, [req.params.id]);
     const load = result.rows[0];
-    const notMine = req.user?.role === 'shipper' && load?.shipper_id !== (await shipperIdFor(req));
+    const notMine = req.user?.role === 'shipper' && load?.shipper_id !== party.shipperId;
     if (!load || notMine) return res.status(404).json({ error: 'Load not found' });
-    res.json(load);
+
+    const photos = await canSeeLoadPhotos(req, party, load)
+      ? (await party.db.query(`
+          SELECT id, caption, created_at FROM load_photos
+          WHERE load_id = $1
+          ORDER BY created_at, id
+        `, [load.id])).rows
+      : [];
+    res.json({ ...load, photos });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 });
 
+/**
+ * Who may see a load's freight photos: the same audience as the load_photos RLS
+ * policy. Checked here too because the embedded dev database runs as a
+ * superuser, where the policy does not apply.
+ */
+async function canSeeLoadPhotos(
+  req: AuthenticatedRequest,
+  party: Awaited<ReturnType<typeof tripParty>>,
+  load: { id: string; shipper_id: string; status: string }
+): Promise<boolean> {
+  if (req.user?.role === 'admin') return true;
+  if (req.user?.role === 'shipper') return load.shipper_id === party.shipperId;
+  if (!party.driverId) return false;
+  if (load.status === 'open') return true;
+  const held = await party.db.query(
+    `SELECT 1 FROM bookings WHERE load_id = $1 AND driver_id = $2 AND status <> 'cancelled'`,
+    [load.id, party.driverId]
+  );
+  return held.rows.length > 0;
+}
+
+// The bytes come through this route, not /uploads, so the rule above applies to
+// the image itself and not only to the list of photos. The client fetches it
+// with its token and shows the result.
+apiRouter.get('/loads/:id/photos/:photoId', authenticate, requireRole('driver', 'shipper', 'admin'), async (req: AuthenticatedRequest, res) => {
+  try {
+    const party = await tripParty(req);
+    const found = await party.db.query<any>(`
+      SELECT p.file_id, l.id, l.shipper_id, l.status
+      FROM load_photos p
+      JOIN loads l ON l.id = p.load_id
+      WHERE p.id = $1 AND p.load_id = $2
+    `, [req.params.photoId, req.params.id]);
+    const row = found.rows[0];
+    if (!row || !(await canSeeLoadPhotos(req, party, row))) {
+      throw new HttpError(404, 'Photo not found');
+    }
+
+    const file = await party.db.query<{ content_type: string; data: Buffer }>(
+      'SELECT content_type, data FROM app_get_upload($1)',
+      [row.file_id]
+    );
+    if (!file.rows[0]) throw new HttpError(404, 'Photo not found');
+    res.setHeader('Content-Type', file.rows[0].content_type);
+    res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
+    // The URL carries no identity, so a cached copy would skip the check above.
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(Buffer.from(file.rows[0].data));
+  } catch (err: any) {
+    sendError(res, err);
+  }
+});
+
+const photoCaptionSchema = z.string().trim().max(120, 'Captions are limited to 120 characters.').optional();
+
+/** The routines in migration 0024 hold these rules; this gives them HTTP statuses. */
+function loadPhotoError(err: any): any {
+  if (err?.code === 'P0002') return new HttpError(404, err.message);
+  if (err?.code === '23514') return new HttpError(409, err.message);
+  return err;
+}
+
+apiRouter.post('/loads/:id/photos', authenticate, requireRole('shipper', 'admin'), (req: AuthenticatedRequest, res) => {
+  photoUpload.single('photo')(req, res, (uploadErr: any) => {
+    if (uploadErr) {
+      const status = uploadErr instanceof HttpError ? uploadErr.status : uploadErr.code === 'LIMIT_FILE_SIZE' ? 413 : 400;
+      const message = uploadErr.code === 'LIMIT_FILE_SIZE' ? 'Photos are limited to 5 MB.' : uploadErr.message;
+      return res.status(status).json({ error: message });
+    }
+    (async () => {
+      if (!req.file) throw new HttpError(400, 'No photo uploaded');
+      const contentType = sniffImageType(req.file.buffer);
+      if (!contentType) throw new HttpError(415, 'Photos must be JPEG, PNG or WebP.');
+      const caption = photoCaptionSchema.parse(req.body?.caption);
+
+      const party = await tripParty(req);
+      const id = newId('PH');
+      await party.db.query(
+        'SELECT app_add_load_photo($1, $2, $3, $4, $5, $6)',
+        [id, newId('doc'), req.params.id, contentType, req.file.buffer, caption ?? null]
+      ).catch(err => { throw loadPhotoError(err); });
+      res.status(201).json({ id, caption: caption || null });
+    })().catch(err => sendError(res, err));
+  });
+});
+
+apiRouter.delete('/loads/:id/photos/:photoId', authenticate, requireRole('shipper', 'admin'), async (req: AuthenticatedRequest, res) => {
+  try {
+    const party = await tripParty(req);
+    await party.db.query(
+      'SELECT app_remove_load_photo($1, $2)',
+      [req.params.photoId, req.params.id]
+    ).catch(err => { throw loadPhotoError(err); });
+    res.status(204).end();
+  } catch (err: any) {
+    sendError(res, err);
+  }
+});
+
 const zipCodeSchema = z.string().trim().regex(/^\d{5}(-\d{4})?$/, 'ZIP must be 5 digits');
+
+const clockTimeSchema = z.string().regex(/^([01]\d|2[0-3]):[0-5]\d$/, 'Times must be HH:MM');
+const shortText = (max: number) => z.string().trim().min(1).max(max).optional();
 
 const createLoadSchema = z.object({
   origin_city: z.string().min(1),
@@ -662,7 +806,33 @@ const createLoadSchema = z.object({
   deadhead_miles: z.number().min(0).optional().default(0),
   demand_multiplier: z.number().positive().max(5).optional(),
   express: z.boolean().optional().default(false),
-  accessorial_codes: z.array(z.string()).optional().default([])
+  accessorial_codes: z.array(z.string()).optional().default([]),
+  load_type: z.enum(['full_truckload', 'partial']).optional(),
+  pickup_appt_start: clockTimeSchema.optional(),
+  pickup_appt_end: clockTimeSchema.optional(),
+  pickup_dock: shortText(60),
+  pickup_parking: shortText(300),
+  pickup_checkin: shortText(300),
+  delivery_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'Delivery date must be YYYY-MM-DD').optional(),
+  delivery_appt_start: clockTimeSchema.optional(),
+  delivery_appt_end: clockTimeSchema.optional(),
+  delivery_dock: shortText(60),
+  delivery_parking: shortText(300),
+  receiving_hours: shortText(120),
+  pallets: z.number().int().min(1).max(60).optional(),
+  commodity: shortText(120),
+  temperature_f: z.number().int().min(-40).max(120).optional(),
+  hazmat: z.boolean().optional(),
+  requires_twic: z.boolean().optional().default(false),
+  requires_team: z.boolean().optional().default(false),
+  requires_load_bars: z.boolean().optional().default(false),
+  payment_terms: shortText(120)
+}).refine(b => !b.delivery_date || b.delivery_date >= b.pickup_date, {
+  message: 'Delivery date cannot be before the pickup date.'
+}).refine(b => !b.pickup_appt_start || !b.pickup_appt_end || b.pickup_appt_end > b.pickup_appt_start, {
+  message: 'Pickup appointment must end after it starts.'
+}).refine(b => !b.delivery_appt_start || !b.delivery_appt_end || b.delivery_appt_end > b.delivery_appt_start, {
+  message: 'Delivery appointment must end after it starts.'
 });
 
 apiRouter.post('/loads', authenticate, requireRole('shipper', 'admin'), async (req: AuthenticatedRequest, res) => {
@@ -706,13 +876,21 @@ apiRouter.post('/loads', authenticate, requireRole('shipper', 'admin'), async (r
           origin_street, origin_zip, origin_address, dest_street, dest_zip, dest_address,
           origin_lat, origin_lng, dest_lat, dest_lng,
           miles, rate_per_mile, equipment_type, pickup_date, weight_lbs, notes,
-          same_day_funding_offered, status
+          same_day_funding_offered, status,
+          load_type, pickup_appt_start, pickup_appt_end, pickup_dock, pickup_parking, pickup_checkin,
+          delivery_date, delivery_appt_start, delivery_appt_end, delivery_dock, delivery_parking, receiving_hours,
+          pallets, commodity, temperature_f, hazmat,
+          requires_twic, requires_team, requires_load_bars, payment_terms
         )
         VALUES (
           $1, $2, $3, $4, $5, $6,
           $7, $8, $9, $10, $11, $12,
           $13, $14, $15, $16,
-          $17, $18, $19, $20, $21, $22, $23, 'open'
+          $17, $18, $19, $20, $21, $22, $23, 'open',
+          $24, $25, $26, $27, $28, $29,
+          $30, $31, $32, $33, $34, $35,
+          $36, $37, $38, $39,
+          $40, $41, $42, $43
         )
       `, [
         loadId, shipperId, body.origin_city, body.origin_state, body.dest_city, body.dest_state,
@@ -720,7 +898,13 @@ apiRouter.post('/loads', authenticate, requireRole('shipper', 'admin'), async (r
         blankToNull(body.dest_street, 120), blankToNull(body.dest_zip), blankToNull(body.dest_address, 200),
         body.origin_lat ?? null, body.origin_lng ?? null, body.dest_lat ?? null, body.dest_lng ?? null,
         body.miles, postedRate, body.equipment_type, body.pickup_date,
-        body.weight_lbs || null, body.notes || null, body.same_day_funding_offered
+        body.weight_lbs || null, body.notes || null, body.same_day_funding_offered,
+        body.load_type ?? null, body.pickup_appt_start ?? null, body.pickup_appt_end ?? null,
+        body.pickup_dock ?? null, body.pickup_parking ?? null, body.pickup_checkin ?? null,
+        body.delivery_date ?? null, body.delivery_appt_start ?? null, body.delivery_appt_end ?? null,
+        body.delivery_dock ?? null, body.delivery_parking ?? null, body.receiving_hours ?? null,
+        body.pallets ?? null, body.commodity ?? null, body.temperature_f ?? null, body.hazmat ?? null,
+        body.requires_twic, body.requires_team, body.requires_load_bars, body.payment_terms ?? null
       ]);
 
       await tx.query(`

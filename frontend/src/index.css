@@ -514,6 +514,8 @@ table.ledger tbody tr:hover {
 /* Find Loads board map — same paper/ink language as Post Load, read-only. */
 .load-board-stage {
   position: relative;
+  /* Keeps Leaflet's high z-indexes and the count badge under the sticky navbar. */
+  isolation: isolate;
   overflow: hidden;
   border: 2px solid var(--ink);
   box-shadow: var(--shadow-hard-lg);
@@ -521,8 +523,8 @@ table.ledger tbody tr:hover {
 }
 
 .load-board-map {
-  height: min(56vh, 520px);
-  min-height: 380px;
+  height: min(46vh, 420px);
+  min-height: 300px;
   border: none;
   box-shadow: none;
   border-radius: 0;
@@ -532,57 +534,21 @@ table.ledger tbody tr:hover {
   filter: saturate(0.55) sepia(0.18) contrast(1.05);
 }
 
-.load-board-legend {
+.load-board-count {
   position: absolute;
-  top: 12px;
   right: 12px;
+  bottom: 24px;
   z-index: 500;
-  max-width: 220px;
   margin: 0;
-  padding: 8px 10px;
-  background: var(--white);
-  border: 2px solid var(--ink);
-  box-shadow: 2px 2px 0 var(--ink);
+  padding: 5px 9px;
+  background: var(--ink);
+  color: var(--white);
   font-family: var(--font-mono);
   font-size: 0.68rem;
-  letter-spacing: 0.04em;
+  font-weight: 700;
+  letter-spacing: 0.06em;
   text-transform: uppercase;
-  color: var(--muted);
   pointer-events: none;
-}
-
-.load-board-sheet {
-  position: absolute;
-  left: 12px;
-  right: 12px;
-  bottom: 12px;
-  z-index: 800;
-  background: var(--white);
-  border: 2px solid var(--ink);
-  box-shadow: var(--shadow-hard-lg);
-  padding: 14px 16px 14px;
-}
-
-.load-board-step {
-  width: 28px;
-  height: 28px;
-  border: 2px solid var(--ink);
-  background: var(--paper);
-  color: var(--ink);
-  font-size: 1.1rem;
-  line-height: 1;
-  box-shadow: 2px 2px 0 var(--ink);
-  cursor: pointer;
-}
-
-.load-board-step:hover:not(:disabled) {
-  transform: translate(-1px, -1px);
-  box-shadow: 3px 3px 0 var(--ink);
-}
-
-.load-board-step:disabled {
-  opacity: 0.4;
-  cursor: not-allowed;
 }
 
 .board-mile,
@@ -632,6 +598,33 @@ table.ledger tbody tr:hover {
   white-space: nowrap;
 }
 
+.board-pin {
+  position: absolute;
+  top: -8px;
+  left: 0;
+  width: max-content;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.board-pin-dot {
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  border: 2px solid var(--ink);
+}
+
+.board-pin-dot.pickup {
+  background: var(--green);
+}
+
+.board-pin-dot.drop {
+  background: var(--amber);
+}
+
 .board-stop.pickup {
   background: var(--green);
   color: var(--white);
@@ -644,19 +637,8 @@ table.ledger tbody tr:hover {
 
 @media (max-width: 640px) {
   .load-board-map {
-    height: 58vh;
-    min-height: 340px;
-  }
-
-  .load-board-legend {
-    display: none;
-  }
-
-  .load-board-sheet {
-    left: 8px;
-    right: 8px;
-    bottom: 8px;
-    padding: 14px;
+    height: 42vh;
+    min-height: 260px;
   }
 }
 

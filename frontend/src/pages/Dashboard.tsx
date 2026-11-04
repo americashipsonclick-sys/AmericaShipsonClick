@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
-import { BookingWithLoad, User } from '../types/api';
+import { LoadDetail } from '../components/LoadDetail';
+import { BookingWithLoad, Load, User } from '../types/api';
 import { usd } from '../lib/settlementPreview';
 
 interface DashboardProps {
@@ -16,6 +17,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onOpenAuth, o
   const queryClient = useQueryClient();
   const [podBusy, setPodBusy] = useState<Record<string, boolean>>({});
   const [podError, setPodError] = useState<Record<string, string>>({});
+  const [openLoad, setOpenLoad] = useState<Load | null>(null);
 
   const { data: adminLedger = [], isLoading: isLoadingAdmin } = useQuery({
     queryKey: ['adminLedger'],
@@ -226,16 +228,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onOpenAuth, o
                           <div>
                             {Number(load.miles).toLocaleString()} mi · ${Number(load.rate_per_mile).toFixed(2)}/mi
                           </div>
-                          {booking && (moving || load.status === 'delivered') && (
-                            <div className="pt-2">
+                          <div className="pt-2 flex flex-wrap gap-2">
+                            <button
+                              onClick={() => setOpenLoad(load)}
+                              className="btn ghost py-1.5 px-3 text-xs"
+                            >
+                              {load.status === 'open' ? 'View & add photos' : 'View load'}
+                            </button>
+                            {booking && (moving || load.status === 'delivered') && (
                               <button
                                 onClick={() => onOpenTrip(booking.id)}
                                 className={`btn ${moving ? 'primary' : 'ghost'} py-1.5 px-3 text-xs`}
                               >
                                 {moving ? 'Track truck' : 'View trip'}
                               </button>
-                            </div>
-                          )}
+                            )}
+                          </div>
                         </div>
                       );
                     })}
@@ -290,6 +298,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onOpenAuth, o
           </div>
         )}
       </div>
+      {openLoad && <LoadDetail load={openLoad} viewer="owner" onClose={() => setOpenLoad(null)} />}
     </div>
   );
 };
