@@ -9,6 +9,8 @@ import { accountLast4, clientIp, newId, sessionContextFor, tokenizeBankAccount }
 import { drivingRoute, formatPlaceLabel, reversePlace, searchPlaces, type GeoPlace, type GeoRoute } from './geo';
 import { cardFromRow, loadRateCatalog, quoteFor } from './rates';
 import { EQUIPMENT_KEYS } from '../database/quote';
+import { createAccountRows } from './accounts';
+import { createGoogleAuthHandler, googleClientId, rateLimitHit } from './google-auth';
 
 export const apiRouter = Router();
 
@@ -96,17 +98,8 @@ const ANALYTICS_PATHS = new Set([
   '/terms'
 ]);
 
-async function hitRateLimit(bucket: string, limit: number, windowSecs: number) {
-  const limitRes = await db.as({ role: 'anon' }).query<{
-    allowed: boolean;
-    remaining: number;
-    retry_after: number;
-  }>('SELECT allowed, remaining, retry_after FROM app_rate_limit_hit($1, $2, $3)', [
-    bucket,
-    limit,
-    windowSecs
-  ]);
-  return limitRes.rows[0];
+function hitRateLimit(bucket: string, limit: number, windowSecs: number) {
+  return rateLimitHit(db, bucket, limit, windowSecs);
 }
 
 function sendError(res: Response, err: any): void {
@@ -306,46 +299,23 @@ apiRouter.post('/auth/signup', async (req, res) => {
     // User row and its role profile are created together or not at all — a
     // half-created account would leave the user unable to sign up or sign in.
     const { userId, driverId, shipperId } = await db.transaction(async tx => {
-      const existing = await tx.query('SELECT id FROM users WHERE email = $1', [body.email]);
+      // Case-insensitive: Google addresses are stored lower-cased, and the same
+      // mailbox must not get a second account by capitalising it differently.
+      const existing = await tx.query('SELECT id FROM users WHERE lower(email) = lower($1)', [body.email]);
       if (existing.rows.length > 0) {
         throw new HttpError(400, 'User with this email already exists');
       }
 
-      const userId = newId('usr');
-
-      await tx.query(
-        'INSERT INTO users (id, role, email, phone, password_hash) VALUES ($1, $2, $3, $4, $5)',
-        [userId, body.role, body.email, body.phone || null, passwordHash]
-      );
-
-      let driverId: string | undefined;
-      let shipperId: string | undefined;
-
-      if (body.role === 'driver') {
-        driverId = newId('drv');
-        await tx.query(`
-          INSERT INTO driver_profiles (id, user_id, full_name, home_base_city, home_base_state, verification_status)
-          VALUES ($1, $2, $3, $4, $5, 'pending')
-        `, [driverId, userId, body.name, body.home_city || 'Dallas', body.home_state || 'TX']);
-
-        await tx.query(`
-          INSERT INTO driver_equipment (id, driver_id, equipment_type, trailer_length_ft)
-          VALUES ($1, $2, 'dry_van', 53)
-        `, ['eq-' + driverId, driverId]);
-
-        await tx.query(`
-          INSERT INTO driver_payment_accounts (id, driver_id, payment_processor, processor_account_id, same_day_funding_opt_in)
-          VALUES ($1, $2, 'stripe_connect', $3, TRUE)
-        `, ['pay-' + driverId, driverId, tokenizeBankAccount(driverId, newId('pending'))]);
-      } else if (body.role === 'shipper') {
-        shipperId = newId('shp');
-        await tx.query(`
-          INSERT INTO shipper_profiles (id, user_id, company_name, billing_email)
-          VALUES ($1, $2, $3, $4)
-        `, [shipperId, userId, body.company_name || body.name, body.email]);
-      }
-
-      return { userId, driverId, shipperId };
+      return createAccountRows(tx, {
+        email: body.email,
+        role: body.role,
+        name: body.name,
+        passwordHash,
+        phone: body.phone,
+        homeCity: body.home_city,
+        homeState: body.home_state,
+        companyName: body.company_name
+      });
     }, ENROLLMENT_CONTEXT);
 
     const token = generateToken({
@@ -408,12 +378,13 @@ apiRouter.post('/auth/login', async (req, res) => {
       id: string;
       role: 'driver' | 'shipper' | 'admin';
       email: string;
-      password_hash: string;
+      password_hash: string | null;
     }>('SELECT * FROM users WHERE email = $1', [email]);
 
     const user = userRes.rows[0];
-    // Compare against a dummy hash when the account does not exist, so the
-    // response time does not reveal which emails are registered.
+    // Compare against a dummy hash when the account does not exist or has no
+    // password (Google-only), so the response does not reveal which emails are
+    // registered or how they sign in.
     const storedHash = user?.password_hash ?? DUMMY_PASSWORD_HASH;
     const match = await bcrypt.compare(password, storedHash);
 
@@ -457,6 +428,15 @@ apiRouter.post('/auth/login', async (req, res) => {
     res.status(400).json({ error: err.message });
   }
 });
+
+// Read at runtime, so turning Google on needs an env var and not a rebuild. The
+// client id is public: it appears in every sign-in the browser makes.
+apiRouter.get('/auth/google/config', (_req, res) => {
+  const clientId = googleClientId();
+  res.json({ enabled: Boolean(clientId), client_id: clientId });
+});
+
+apiRouter.post('/auth/google', createGoogleAuthHandler({ db }));
 
 apiRouter.get('/auth/me', authenticate, async (req: AuthenticatedRequest, res) => {
   if (!req.user) return res.status(401).json({ error: 'Not authenticated' });

@@ -83,6 +83,9 @@ values marked `sync: false`:
 - `ADMIN_PASSWORD`: 8+ characters and not the demo password published in this
   repo; the server refuses to start otherwise
 
+`GOOGLE_CLIENT_ID` is optional and turns on Continue with Google. The README
+lists the steps to create it, including the origin to authorize.
+
 `JWT_SECRET` and `PAYMENT_TOKEN_SECRET` are generated once by Render and
 persist across deploys. Rotating `JWT_SECRET` invalidates every issued token.
 

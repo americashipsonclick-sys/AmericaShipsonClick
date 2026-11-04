@@ -162,6 +162,8 @@ export default function App() {
           {activeTab === 'books' && <OpenBooks />}
           {activeTab === 'driver' && (
             <DriveWithUs
+              currentUser={currentUser}
+              onSignedIn={setCurrentUser}
               onSuccessOnboard={(user) => {
                 setCurrentUser(user);
                 setActiveTab('loads');
@@ -226,7 +228,11 @@ export default function App() {
           isOpen={authModalOpen}
           role={authRole}
           onClose={() => setAuthModalOpen(false)}
-          onSuccess={(user) => setCurrentUser(user)}
+          onSuccess={(user, info) => {
+            setCurrentUser(user);
+            // A new Google driver carries on to the carrier details and documents.
+            if (info?.created && user.role === 'driver') setActiveTab('driver');
+          }}
         />
       </div>
       <CookieConsent

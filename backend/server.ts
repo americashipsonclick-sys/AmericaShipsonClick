@@ -40,7 +40,9 @@ async function startServer() {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
-    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+    // Not plain same-origin: Google's sign-in popup reports back through the
+    // window that opened it, which same-origin would cut off.
+    res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
     // Geolocation is allowed for the app's own pages: the driver's trip page
     // reports the truck's position while a load is active.
     res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(self)');

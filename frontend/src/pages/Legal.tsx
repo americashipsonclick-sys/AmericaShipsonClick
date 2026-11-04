@@ -32,7 +32,7 @@ export const PrivacyPolicy: React.FC = () => (
     </Section>
     <Section heading="Account and onboarding">
       <p>
-        Creating an account stores an email, a hashed password, a role (carrier or shipper), and an optional phone number.
+        Creating an account stores an email, a hashed password (unless you use Google), a role (carrier or shipper), and an optional phone number.
         Carrier profiles store a name, home base, and equipment. Shipper profiles store a company name and billing email.
         Onboarding can include uploads of a CDL, operating authority, and a certificate of insurance. Those files are stored
         as downloads, not rendered as live pages.
@@ -54,6 +54,11 @@ export const PrivacyPolicy: React.FC = () => (
       <p>
         A successful sign-in stores a token in local storage on this device. Signing out removes it. We do not set advertising cookies.
         Network addresses are used to slow repeated sign-in failures and form spam. Those counters expire.
+      </p>
+      <p>
+        If you choose Continue with Google, your browser loads Google&rsquo;s sign-in script and Google tells us your name, email
+        address, and account id. We keep the email address and account id to recognize you, and a name only if it goes on your
+        profile. Such an account has no password here.
       </p>
     </Section>
     <Section heading="Optional analytics">

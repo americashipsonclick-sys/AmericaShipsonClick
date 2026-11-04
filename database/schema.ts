@@ -37,9 +37,18 @@ export interface User {
   role: UserRole;
   email: string;
   phone?: string;
-  password_hash: string;
+  /** Null for a Google-only account. */
+  password_hash: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface UserGoogleIdentity {
+  id: string;
+  google_sub: string;
+  user_id: string;
+  email: string;
+  created_at: string;
 }
 
 export interface DriverProfile {

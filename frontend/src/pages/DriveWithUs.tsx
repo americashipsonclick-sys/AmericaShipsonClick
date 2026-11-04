@@ -3,8 +3,11 @@ import { useQuery } from '@tanstack/react-query';
 import { Eye, EyeOff } from 'lucide-react';
 import { api } from '../lib/api';
 import { EquipmentType, User } from '../types/api';
+import { GoogleButton } from '../components/GoogleButton';
 
 interface DriveWithUsProps {
+  currentUser: User | null;
+  onSignedIn: (user: User) => void;
   onSuccessOnboard: (user: User) => void;
 }
 
@@ -31,7 +34,7 @@ function persistDraft(
   }));
 }
 
-export const DriveWithUs: React.FC<DriveWithUsProps> = ({ onSuccessOnboard }) => {
+export const DriveWithUs: React.FC<DriveWithUsProps> = ({ currentUser, onSignedIn, onSuccessOnboard }) => {
   const [step, setStep] = useState<number>(1);
   const [submitting, setSubmitting] = useState(false);
   const { data: catalog } = useQuery({
@@ -46,6 +49,9 @@ export const DriveWithUs: React.FC<DriveWithUsProps> = ({ onSuccessOnboard }) =>
   const [showPassword, setShowPassword] = useState(false);
   // Step 1 creates the account, so uploads in later steps are authenticated.
   const [accountCreated, setAccountCreated] = useState(false);
+  // A verified Google login standing in for the password. Step 1 is still filled
+  // in before the account is created; the token is held here, never in the draft.
+  const [googleSignup, setGoogleSignup] = useState<{ credential: string; email: string } | null>(null);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
@@ -109,6 +115,46 @@ export const DriveWithUs: React.FC<DriveWithUsProps> = ({ onSuccessOnboard }) =>
     persistDraft(formData, step, accountCreated);
   }, [draftReady, formData, step, accountCreated]);
 
+  // A driver who is already signed in (for example, registered through Google in
+  // the sign-in dialog) has an account, so step 1 must not try to create another.
+  useEffect(() => {
+    if (!draftReady || currentUser?.role !== 'driver') return;
+    setAccountCreated(true);
+    setFormData((prev) => ({
+      ...prev,
+      email: currentUser.email,
+      full_name: prev.full_name || currentUser.name || ''
+    }));
+  }, [draftReady, currentUser]);
+
+  const handleGoogleCredential = async (credential: string) => {
+    setErrorMsg(null);
+    setSubmitting(true);
+    try {
+      const res = await api.googleAuth({ credential });
+      if (res.status === 'needs_registration') {
+        setGoogleSignup({ credential, email: res.email });
+        setFormData((prev) => ({
+          ...prev,
+          email: res.email,
+          full_name: prev.full_name || res.name || ''
+        }));
+        setFieldErrors({});
+      } else if (res.status === 'link_required') {
+        setErrorMsg('An account with this email already exists. Sign in first, then finish onboarding.');
+      } else {
+        onSignedIn(res.user);
+        if (res.user.role !== 'driver') {
+          setErrorMsg(`You are signed in as a ${res.user.role}. Driver onboarding needs a driver account.`);
+        }
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Google sign-in failed');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
   const updateField = (field: string, value: unknown) => {
     setFormData((prev) => ({ ...prev, [field]: value }));
 
@@ -148,7 +194,8 @@ export const DriveWithUs: React.FC<DriveWithUsProps> = ({ onSuccessOnboard }) =>
     if (!formData.full_name || formData.full_name.trim().length < 2) {
       errors.full_name = 'Full name is required';
     }
-    if (!formData.phone || formData.phone.replace(/\D/g, '').length < 10) {
+    // The phone number is recorded when the account is created and not after.
+    if (!accountCreated && (!formData.phone || formData.phone.replace(/\D/g, '').length < 10)) {
       errors.phone = 'Valid 10-digit phone number is required';
     }
     const emailRegex = /^\S+@\S+\.\S+$/;
@@ -163,7 +210,7 @@ export const DriveWithUs: React.FC<DriveWithUsProps> = ({ onSuccessOnboard }) =>
     }
     // Only enforced while the account is still being created; once it exists,
     // stepping back to edit profile fields must not demand the password again.
-    if (!accountCreated) {
+    if (!accountCreated && !googleSignup) {
       if (password.length < 8) {
         errors.password = 'Password must be at least 8 characters';
       }
@@ -249,15 +296,31 @@ export const DriveWithUs: React.FC<DriveWithUsProps> = ({ onSuccessOnboard }) =>
     if (step === 1 && !accountCreated) {
       setSubmitting(true);
       try {
-        await api.signup({
-          email: formData.email,
-          password,
-          role: 'driver',
-          name: formData.full_name,
-          phone: formData.phone,
-          home_city: formData.home_base_city,
-          home_state: formData.home_base_state
-        });
+        if (googleSignup) {
+          const res = await api.googleAuth({
+            credential: googleSignup.credential,
+            role: 'driver',
+            name: formData.full_name,
+            phone: formData.phone,
+            home_city: formData.home_base_city,
+            home_state: formData.home_base_state
+          });
+          if (res.status !== 'created' && res.status !== 'signed_in') {
+            throw new Error('An account with this email already exists');
+          }
+          setGoogleSignup(null);
+          onSignedIn(res.user);
+        } else {
+          await api.signup({
+            email: formData.email,
+            password,
+            role: 'driver',
+            name: formData.full_name,
+            phone: formData.phone,
+            home_city: formData.home_base_city,
+            home_state: formData.home_base_state
+          });
+        }
         setAccountCreated(true);
         setPassword('');
         setConfirmPassword('');
@@ -374,6 +437,25 @@ export const DriveWithUs: React.FC<DriveWithUsProps> = ({ onSuccessOnboard }) =>
                 </span>
               </div>
 
+              {!accountCreated && !googleSignup && !currentUser && (
+                <GoogleButton onCredential={handleGoogleCredential} />
+              )}
+
+              {googleSignup && (
+                <div className="border-2 border-[#0F5132] bg-[#E4DCC4] px-3 py-2 flex flex-wrap items-center justify-between gap-2">
+                  <span className="font-mono text-[0.76rem] font-bold text-[#0F5132] break-all">
+                    Continuing with Google as {googleSignup.email}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setGoogleSignup(null)}
+                    className="font-mono text-[0.76rem] text-[#14171A] underline bg-transparent border-none cursor-pointer"
+                  >
+                    Use a password instead
+                  </button>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block text-xs font-mono font-bold uppercase text-[#14171A] mb-1">
@@ -394,6 +476,7 @@ export const DriveWithUs: React.FC<DriveWithUsProps> = ({ onSuccessOnboard }) =>
                   )}
                 </div>
 
+                {!accountCreated && (
                 <div>
                   <label className="block text-xs font-mono font-bold uppercase text-[#14171A] mb-1">
                     Phone Number *
@@ -412,6 +495,7 @@ export const DriveWithUs: React.FC<DriveWithUsProps> = ({ onSuccessOnboard }) =>
                     </span>
                   )}
                 </div>
+                )}
               </div>
 
               <div>
@@ -421,6 +505,7 @@ export const DriveWithUs: React.FC<DriveWithUsProps> = ({ onSuccessOnboard }) =>
                 <input
                   type="email"
                   required
+                  readOnly={Boolean(googleSignup) || accountCreated}
                   value={formData.email}
                   onChange={(e) => updateField('email', e.target.value)}
                   placeholder="john.smith@trucking.com"
@@ -433,7 +518,7 @@ export const DriveWithUs: React.FC<DriveWithUsProps> = ({ onSuccessOnboard }) =>
                 )}
               </div>
 
-              {!accountCreated && (
+              {!accountCreated && !googleSignup && (
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-xs font-mono font-bold uppercase text-[#14171A] mb-1">

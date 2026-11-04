@@ -10,6 +10,8 @@ import {
   SettlementTotals,
   DriverOnboardInput,
   User,
+  GoogleAuthRequest,
+  GoogleAuthResult,
   RateCatalog,
   QuoteBreakdown,
   RateCard,
@@ -160,6 +162,24 @@ export const api = {
     });
     const result = await handleResponse<{ token: string; user: User }>(res);
     localStorage.setItem('americaships_jwt', result.token);
+    return result;
+  },
+
+  async getGoogleConfig(): Promise<{ enabled: boolean; client_id: string | null }> {
+    const res = await fetch(`${API_BASE}/auth/google/config`);
+    return handleResponse<{ enabled: boolean; client_id: string | null }>(res);
+  },
+
+  async googleAuth(data: GoogleAuthRequest): Promise<GoogleAuthResult> {
+    const res = await fetch(`${API_BASE}/auth/google`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data)
+    });
+    const result = await handleResponse<GoogleAuthResult>(res);
+    if (result.status === 'signed_in' || result.status === 'created') {
+      localStorage.setItem('americaships_jwt', result.token);
+    }
     return result;
   },
 

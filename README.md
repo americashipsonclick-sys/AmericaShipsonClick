@@ -213,7 +213,7 @@ billing contacts.
 
 ### Constraints that make bad data unwritable
 
-- `users.password_hash` must be a bcrypt digest — a plaintext password cannot be stored, whatever the application does.
+- `users.password_hash` must be a bcrypt digest or null — a plaintext password cannot be stored, whatever the application does.
 - `driver_payment_accounts.processor_account_id` rejects anything shaped like a bare account number.
 - `settlements` must balance: `net = gross - fee - factor` and `gross = miles x rate`, to the cent. A fabricated payout row is rejected even when written by the owner.
 - Money and distance columns reject negative values; `fee_pct_applied` is capped at 50%.
@@ -231,6 +231,7 @@ can neither forge entries nor read them back.
 
 - Bank details are tokenized with **HMAC-SHA256** (`PAYMENT_TOKEN_SECRET`), which is irreversible — the previous base64 "tokenization" was decodable by anyone holding the value.
 - `JWT_SECRET` has no production fallback: the server refuses to start without one of at least 32 characters. Tokens are signed and verified with a pinned `HS256`, blocking algorithm-confusion and `alg: none` forgeries.
+- `users.password_hash` is null for a Google-only account, which password login treats like any wrong password. Administrators must have a password (`users_admin_has_password`). Google links live in `user_google_identities`, which the app role can only read and insert.
 - Failed sign-ins are recorded in the database and lock an account after 5 failures in 15 minutes, so throttling survives restarts and applies across every instance. Unknown accounts are compared against a dummy hash so response timing does not reveal which emails exist.
 - Identifiers (`LD-`, `BK-`, `STL-`, `usr-`) come from `crypto.randomBytes`, not timestamps, so one id never reveals the next.
 
@@ -333,7 +334,33 @@ VITE_API_BASE_URL="/api"
 
 # Secret key for signing JWT tokens
 JWT_SECRET="americashipsonclick_secret_jwt_key_2026"
+
+# OAuth client id for Continue with Google. Unset hides the button.
+# GOOGLE_CLIENT_ID="1234567890-abc.apps.googleusercontent.com"
 ```
+
+### Continue with Google
+
+Drivers and shippers can sign in or register with Google on the sign-in dialog and on step 1 of driver onboarding. The server verifies Google's ID token (signature, audience, issuer, expiry) and refuses a login whose `email_verified` is not true. It trusts nothing else the browser sends about who the person is.
+
+| The Google login is… | What happens |
+| --- | --- |
+| Already linked | Signs in with the account's existing role. A `role` in the request is ignored. |
+| New | The visitor chooses driver or shipper, then gets the same rows password signup creates. A driver starts `pending`. The account has no password, so password login fails for it with the usual error. |
+| The same address as a password account | Links only after the account's password is entered, once. Failures count toward the sign-in lockout. Afterward both ways of signing in work. Password signup does not prove ownership of an address, so linking on the email alone would leave whoever registered it first with a working password. |
+| The same address as an account already linked to another Google login | Refused. |
+| An administrator's address | Refused. Administrators sign in with their password. |
+
+To turn it on:
+
+1. In the [Google Cloud console](https://console.cloud.google.com/), select or create a project.
+2. Under **Google Auth Platform → Branding**, fill in the app name and support email. Under **Audience**, choose **External** and publish the app when you are ready for accounts outside your test users.
+3. Under **Clients**, choose **Create client**, then **Web application**.
+4. Under **Authorized JavaScript origins**, add each origin that shows the button:
+   - `https://your-production-domain`
+   - `http://localhost` and `http://localhost:3000` for local development (Google asks for both)
+5. Leave **Authorized redirect URIs** empty. The button uses Google's popup and has no redirect step.
+6. Set `GOOGLE_CLIENT_ID` to the client id and restart the server. No rebuild and no client secret are needed.
 
 ---
 
@@ -346,6 +373,8 @@ JWT_SECRET="americashipsonclick_secret_jwt_key_2026"
 ### 2. Authentication
 - `POST /api/auth/signup` — Driver, Shipper, or Admin account creation
 - `POST /api/auth/login` — Account login, returns JWT token
+- `GET /api/auth/google/config` — Whether Continue with Google is on, and the public client id
+- `POST /api/auth/google` — Signs in or registers from a Google ID token. See [Continue with Google](#continue-with-google)
 - `GET /api/auth/me` — Authenticated user details & profile
 
 ### 3. Freight Loads
