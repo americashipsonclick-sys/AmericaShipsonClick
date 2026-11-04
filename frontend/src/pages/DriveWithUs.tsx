@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Eye, EyeOff } from 'lucide-react';
 import { api } from '../lib/api';
 import { EquipmentType, User } from '../types/api';
 
@@ -42,6 +43,7 @@ export const DriveWithUs: React.FC<DriveWithUsProps> = ({ onSuccessOnboard }) =>
   // localStorage as a resumable draft, and a password does not belong there.
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   // Step 1 creates the account, so uploads in later steps are authenticated.
   const [accountCreated, setAccountCreated] = useState(false);
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
@@ -437,22 +439,33 @@ export const DriveWithUs: React.FC<DriveWithUsProps> = ({ onSuccessOnboard }) =>
                     <label className="block text-xs font-mono font-bold uppercase text-[#14171A] mb-1">
                       Create Password *
                     </label>
-                    <input
-                      type="password"
-                      required
-                      autoComplete="new-password"
-                      value={password}
-                      onChange={(e) => {
-                        setPassword(e.target.value);
-                        setFieldErrors((prev) => {
-                          const copy = { ...prev };
-                          delete copy.password;
-                          return copy;
-                        });
-                      }}
-                      placeholder="Minimum 8 characters"
-                      className={`w-full p-2.5 bg-[#F0EAD8] border-2 ${fieldErrors.password ? 'border-[#8C2F1B] bg-red-50' : 'border-[#14171A]'} text-xs font-mono focus:outline-none focus:bg-white`}
-                    />
+                    <div className="relative">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        required
+                        autoComplete="new-password"
+                        value={password}
+                        onChange={(e) => {
+                          setPassword(e.target.value);
+                          setFieldErrors((prev) => {
+                            const copy = { ...prev };
+                            delete copy.password;
+                            return copy;
+                          });
+                        }}
+                        placeholder="Minimum 8 characters"
+                        className={`w-full p-2.5 pr-10 bg-[#F0EAD8] border-2 ${fieldErrors.password ? 'border-[#8C2F1B] bg-red-50' : 'border-[#14171A]'} text-xs font-mono focus:outline-none focus:bg-white`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((v) => !v)}
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        aria-pressed={showPassword}
+                        className="absolute inset-y-0 right-0 px-3 flex items-center text-[#5B6168] hover:text-[#14171A]"
+                      >
+                        {showPassword ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
+                      </button>
+                    </div>
                     {fieldErrors.password && (
                       <span className="text-[0.76rem] font-mono text-[#8C2F1B] font-bold mt-1 block">
                         ✕ {fieldErrors.password}
@@ -464,22 +477,33 @@ export const DriveWithUs: React.FC<DriveWithUsProps> = ({ onSuccessOnboard }) =>
                     <label className="block text-xs font-mono font-bold uppercase text-[#14171A] mb-1">
                       Confirm Password *
                     </label>
-                    <input
-                      type="password"
-                      required
-                      autoComplete="new-password"
-                      value={confirmPassword}
-                      onChange={(e) => {
-                        setConfirmPassword(e.target.value);
-                        setFieldErrors((prev) => {
-                          const copy = { ...prev };
-                          delete copy.confirm_password;
-                          return copy;
-                        });
-                      }}
-                      placeholder="Re-enter password"
-                      className={`w-full p-2.5 bg-[#F0EAD8] border-2 ${fieldErrors.confirm_password ? 'border-[#8C2F1B] bg-red-50' : 'border-[#14171A]'} text-xs font-mono focus:outline-none focus:bg-white`}
-                    />
+                    <div className="relative">
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        required
+                        autoComplete="new-password"
+                        value={confirmPassword}
+                        onChange={(e) => {
+                          setConfirmPassword(e.target.value);
+                          setFieldErrors((prev) => {
+                            const copy = { ...prev };
+                            delete copy.confirm_password;
+                            return copy;
+                          });
+                        }}
+                        placeholder="Re-enter password"
+                        className={`w-full p-2.5 pr-10 bg-[#F0EAD8] border-2 ${fieldErrors.confirm_password ? 'border-[#8C2F1B] bg-red-50' : 'border-[#14171A]'} text-xs font-mono focus:outline-none focus:bg-white`}
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword((v) => !v)}
+                        aria-label={showPassword ? 'Hide password' : 'Show password'}
+                        aria-pressed={showPassword}
+                        className="absolute inset-y-0 right-0 px-3 flex items-center text-[#5B6168] hover:text-[#14171A]"
+                      >
+                        {showPassword ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
+                      </button>
+                    </div>
                     {fieldErrors.confirm_password && (
                       <span className="text-[0.76rem] font-mono text-[#8C2F1B] font-bold mt-1 block">
                         ✕ {fieldErrors.confirm_password}
