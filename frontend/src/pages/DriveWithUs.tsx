@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { Eye, EyeOff } from 'lucide-react';
 import { api } from '../lib/api';
 import { EquipmentType, User } from '../types/api';
 
@@ -453,16 +454,16 @@ export const DriveWithUs: React.FC<DriveWithUsProps> = ({ onSuccessOnboard }) =>
                           });
                         }}
                         placeholder="Minimum 8 characters"
-                        className={`w-full p-2.5 pr-16 bg-[#F0EAD8] border-2 ${fieldErrors.password ? 'border-[#8C2F1B] bg-red-50' : 'border-[#14171A]'} text-xs font-mono focus:outline-none focus:bg-white`}
+                        className={`w-full p-2.5 pr-10 bg-[#F0EAD8] border-2 ${fieldErrors.password ? 'border-[#8C2F1B] bg-red-50' : 'border-[#14171A]'} text-xs font-mono focus:outline-none focus:bg-white`}
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword((v) => !v)}
                         aria-label={showPassword ? 'Hide password' : 'Show password'}
                         aria-pressed={showPassword}
-                        className="absolute inset-y-0 right-0 px-3 text-[0.7rem] font-mono font-bold uppercase text-[#5B6168] hover:text-[#14171A]"
+                        className="absolute inset-y-0 right-0 px-3 flex items-center text-[#5B6168] hover:text-[#14171A]"
                       >
-                        {showPassword ? 'Hide' : 'Show'}
+                        {showPassword ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
                       </button>
                     </div>
                     {fieldErrors.password && (
@@ -491,16 +492,16 @@ export const DriveWithUs: React.FC<DriveWithUsProps> = ({ onSuccessOnboard }) =>
                           });
                         }}
                         placeholder="Re-enter password"
-                        className={`w-full p-2.5 pr-16 bg-[#F0EAD8] border-2 ${fieldErrors.confirm_password ? 'border-[#8C2F1B] bg-red-50' : 'border-[#14171A]'} text-xs font-mono focus:outline-none focus:bg-white`}
+                        className={`w-full p-2.5 pr-10 bg-[#F0EAD8] border-2 ${fieldErrors.confirm_password ? 'border-[#8C2F1B] bg-red-50' : 'border-[#14171A]'} text-xs font-mono focus:outline-none focus:bg-white`}
                       />
                       <button
                         type="button"
                         onClick={() => setShowPassword((v) => !v)}
                         aria-label={showPassword ? 'Hide password' : 'Show password'}
                         aria-pressed={showPassword}
-                        className="absolute inset-y-0 right-0 px-3 text-[0.7rem] font-mono font-bold uppercase text-[#5B6168] hover:text-[#14171A]"
+                        className="absolute inset-y-0 right-0 px-3 flex items-center text-[#5B6168] hover:text-[#14171A]"
                       >
-                        {showPassword ? 'Hide' : 'Show'}
+                        {showPassword ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
                       </button>
                     </div>
                     {fieldErrors.confirm_password && (

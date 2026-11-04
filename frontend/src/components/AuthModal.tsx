@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import { api } from '../lib/api';
 import { User, UserRole } from '../types/api';
 
@@ -238,16 +239,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({ isOpen, onClose, onSuccess
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="At least 6 characters"
-                className="w-full p-2.5 pr-16 bg-[#F0EAD8] border border-[#E4DCC4] rounded text-sm"
+                className="w-full p-2.5 pr-10 bg-[#F0EAD8] border border-[#E4DCC4] rounded text-sm"
               />
               <button
                 type="button"
                 onClick={() => setShowPassword((v) => !v)}
                 aria-label={showPassword ? 'Hide password' : 'Show password'}
                 aria-pressed={showPassword}
-                className="absolute inset-y-0 right-0 px-3 text-[0.7rem] font-mono font-bold uppercase text-[#5B6168] hover:text-[#14171A]"
+                className="absolute inset-y-0 right-0 px-3 flex items-center text-[#5B6168] hover:text-[#14171A]"
               >
-                {showPassword ? 'Hide' : 'Show'}
+                {showPassword ? <EyeOff size={16} aria-hidden="true" /> : <Eye size={16} aria-hidden="true" />}
               </button>
             </div>
           </div>
