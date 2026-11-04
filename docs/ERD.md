@@ -13,7 +13,7 @@ tables. Messaging and email are not in this database yet.
 
 | Domain | Tables | What the database decides |
 | --- | --- | --- |
-| Identity | `users`, `driver_profiles`, `shipper_profiles`, `driver_documents`, `driver_equipment`, `driver_payment_accounts`, `verification_reviews` | Who may act. Admin cannot be self-served. A carrier cannot mark themselves verified. |
+| Identity | `users`, `user_google_identities`, `driver_profiles`, `shipper_profiles`, `driver_documents`, `driver_equipment`, `driver_payment_accounts`, `verification_reviews` | Who may act. Admin cannot be self-served. A carrier cannot mark themselves verified. |
 | Freight | `loads`, `load_photos`, `bookings`, `booking_locations`, `load_events`, `load_offers` | One live booking per load. Illegal status jumps are rejected. Offers accept atomically. GPS points come only from the booked driver while the trip is active, and reaching a stop logs the arrival once. A load has at most three photos, changed only by its shipper or an admin while it is open. |
 | Open Books | `settlements`, `settlement_disputes`, `settlement_adjustments`, `platform_config` | `net = gross − fee − factor`. Settlements are append-only. Corrections are additive. |
 | Ops | `refresh_tokens`, `password_reset_tokens`, `idempotency_keys`, `api_rate_limits`, `auth_login_attempts`, `audit_log`, `notifications`, `notification_preferences`, `ratings` | Sessions, throttles, and reputation survive restarts. |
@@ -24,6 +24,7 @@ tables. Messaging and email are not in this database yet.
 
 ```mermaid
 erDiagram
+    users ||--o| user_google_identities : "1:1 Google login"
     users ||--o| driver_profiles : "1:1"
     users ||--o| shipper_profiles : "1:1"
     users ||--o{ ratings : "rates"
@@ -57,7 +58,14 @@ erDiagram
         text id PK
         user_role role "driver shipper admin"
         text email UK
-        text password_hash "bcrypt only"
+        text password_hash "bcrypt or null; admin required"
+    }
+
+    user_google_identities {
+        text id PK
+        text google_sub UK
+        text user_id FK,UK
+        text email "as reported at link time"
     }
 
     loads {

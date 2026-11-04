@@ -1,5 +1,6 @@
 ```mermaid
 erDiagram
+    users ||--o| user_google_identities : "1:1"
     users ||--o| driver_profiles : "1:1"
     users ||--o| shipper_profiles : "1:1"
     
@@ -23,7 +24,15 @@ erDiagram
         enum role "driver | shipper | admin"
         string email UK
         string phone
-        string password_hash
+        string password_hash "null for Google-only"
+        timestamp created_at
+    }
+
+    user_google_identities {
+        string id PK
+        string google_sub UK
+        string user_id FK,UK
+        string email
         timestamp created_at
     }
 

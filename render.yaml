@@ -64,6 +64,11 @@ services:
       - key: ADMIN_PASSWORD
         sync: false
 
+      # Optional. Set in the Render dashboard to turn on Continue with Google;
+      # the button stays hidden until then. See the README for creating the id.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+
       # Demo seeding stays off in production.
       - key: DB_SEED
         value: "false"

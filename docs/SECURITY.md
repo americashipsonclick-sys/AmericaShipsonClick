@@ -27,6 +27,7 @@ than a list of permissions:
 | Table | Granted | The decision |
 | --- | --- | --- |
 | `users` | `SELECT, INSERT` | No route changes a user row, so no route may. The application cannot rewrite a `password_hash` or promote a `role` even with arbitrary SQL execution. |
+| `user_google_identities` | `SELECT, INSERT` | A link is made once and never reassigned. Linking does not need `UPDATE` on `users`. |
 | `driver_profiles`, `driver_equipment`, `driver_payment_accounts` | `SELECT, INSERT, UPDATE` | Onboarding edits these. |
 | `driver_documents`, `shipper_profiles` | `SELECT, INSERT` | Written once. |
 | `loads`, `bookings` | `SELECT, INSERT, UPDATE` | Status advances over a load's life. |
@@ -68,8 +69,8 @@ Seven roles exist, and four of them are not users:
 | Context | When | Exists because |
 | --- | --- | --- |
 | `anon` | Public reads — the ledger, `/api/config` | Unauthenticated visitors are a first-class caller here, not an error |
-| `auth` | Inside `POST /auth/login` only | Checking a password requires reading a `users` row *before* any identity exists |
-| `enrollment` | Inside `POST /auth/signup` only | Creating an account requires inserting rows before an identity exists |
+| `auth` | Inside `POST /auth/login` and `POST /auth/google` | Checking a credential requires reading a `users` row *before* any identity exists |
+| `enrollment` | Inside `POST /auth/signup` and new accounts in `POST /auth/google` | Creating an account requires inserting rows before an identity exists |
 | `webhook` | Chain-indexer ingest after the route verifies the vendor signature | Phase 1 mint / stake / bonus events must be writable without a user JWT |
 | `driver` / `shipper` / `admin` | Authenticated requests | The verified JWT |
 
@@ -182,6 +183,20 @@ grants more than the sentence you had in mind.
 column to match `^\$2[aby]?\$[0-9]{2}\$` with length ≥ 55. A plaintext password
 is not merely discouraged, it is unwritable — the wrong-shaped `INSERT` is
 rejected by the database.
+
+**No password.** A Google-only account stores `NULL`, which passes the CHECK.
+Password login compares it against the dummy hash below and returns the usual
+error, so the response does not reveal that the address exists or how it signs
+in. `users_admin_has_password` keeps `NULL` away from administrators.
+
+**Google links.** `user_google_identities` can be written two ways only: by the
+account's own session, after `POST /auth/google` has checked its password, or by
+`enrollment` for a passwordless account it just created. Neither reaches an
+administrator, and the route refuses them as well, because development's
+superuser connection skips these policies. A verified Google address alone never
+opens a password account: password signup does not prove ownership of an address,
+so that would keep the first registrant's password working on the real owner's
+account.
 
 **Timing.** An unknown email is compared against `DUMMY_PASSWORD_HASH`
 ([`routes.ts:205`](../backend/routes.ts)), a real bcrypt digest of an

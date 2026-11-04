@@ -119,6 +119,22 @@ export interface User {
   name?: string;
 }
 
+export interface GoogleAuthRequest {
+  credential: string;
+  role?: 'driver' | 'shipper';
+  name?: string;
+  company_name?: string;
+  phone?: string;
+  home_city?: string;
+  home_state?: string;
+  password?: string;
+}
+
+export type GoogleAuthResult =
+  | { status: 'signed_in' | 'created'; token: string; user: User }
+  | { status: 'needs_registration'; email: string; name: string | null }
+  | { status: 'link_required'; email: string };
+
 export interface Load {
   id: string;
   shipper_id: string;

@@ -59,7 +59,7 @@ export async function ensureAdminAccount(db: Database): Promise<AdminAccountOutc
   }
 
   return db.transaction(async tx => {
-    const existing = await tx.query<{ id: string; role: string; password_hash: string }>(
+    const existing = await tx.query<{ id: string; role: string; password_hash: string | null }>(
       'SELECT id, role, password_hash FROM users WHERE lower(email) = $1',
       [email]
     );
@@ -78,7 +78,7 @@ export async function ensureAdminAccount(db: Database): Promise<AdminAccountOutc
     // on every boot and rewrite the row each time. Compare against the stored
     // hash instead, and leave it alone when the credential already matches —
     // otherwise a restart would end the administrator's session.
-    if (row.role === 'admin' && await bcrypt.compare(password, row.password_hash)) {
+    if (row.role === 'admin' && row.password_hash && await bcrypt.compare(password, row.password_hash)) {
       return { status: 'unchanged', email } as const;
     }
 
