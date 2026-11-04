@@ -130,6 +130,33 @@ export interface Load {
   cancellation_reason?: string;
   created_at: string;
   updated_at?: string;
+  load_type?: 'full_truckload' | 'partial';
+  pickup_appt_start?: string;
+  pickup_appt_end?: string;
+  pickup_dock?: string;
+  pickup_parking?: string;
+  pickup_checkin?: string;
+  delivery_appt_start?: string;
+  delivery_appt_end?: string;
+  delivery_dock?: string;
+  delivery_parking?: string;
+  receiving_hours?: string;
+  pallets?: number;
+  temperature_f?: number;
+  hazmat?: boolean;
+  requires_twic: boolean;
+  requires_team: boolean;
+  requires_load_bars: boolean;
+  payment_terms?: string;
+}
+
+export interface LoadPhoto {
+  id: string;
+  load_id: string;
+  file_id: string;
+  caption?: string;
+  uploaded_by?: string;
+  created_at: string;
 }
 
 export interface Booking {

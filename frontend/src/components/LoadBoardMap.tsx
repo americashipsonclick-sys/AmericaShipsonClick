@@ -3,16 +3,13 @@ import * as L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { api } from '../lib/api';
 import { dropCoords, lanePlace, pickupCoords, type LatLng } from '../lib/laneCoords';
-import { pctLabel, settlementPreview, usd } from '../lib/settlementPreview';
-import type { Load, PlatformConfig, RateCatalog } from '../types/api';
+import { pickupRange } from '../lib/loadFormat';
+import type { Load } from '../types/api';
 
 interface LoadBoardMapProps {
   loads: Load[];
   focusedId: string | null;
-  catalog?: RateCatalog;
-  config?: PlatformConfig;
   onFocus: (loadId: string) => void;
-  onBook: (load: Load) => void;
 }
 
 function mileIcon(miles: number, active: boolean): L.DivIcon {
@@ -25,8 +22,23 @@ function mileIcon(miles: number, active: boolean): L.DivIcon {
   });
 }
 
-export function stopIcon(kind: 'pickup' | 'drop'): L.DivIcon {
+function escapeHtml(text: string): string {
+  const el = document.createElement('span');
+  el.textContent = text;
+  return el.innerHTML;
+}
+
+/** With `place`, a dot on the exact spot with "Pickup · Temple TX" under it. */
+export function stopIcon(kind: 'pickup' | 'drop', place?: string): L.DivIcon {
   const label = kind === 'pickup' ? 'Pickup' : 'Drop';
+  if (place) {
+    return L.divIcon({
+      className: 'board-stop-wrap',
+      html: `<span class="board-pin"><span class="board-pin-dot ${kind}"></span><span class="board-stop ${kind}">${label} · ${escapeHtml(place)}</span></span>`,
+      iconSize: [0, 0],
+      iconAnchor: [0, 0]
+    });
+  }
   return L.divIcon({
     className: 'board-stop-wrap',
     html: `<span class="board-stop ${kind}">${label}</span>`,
@@ -77,105 +89,10 @@ function geocodeCity(city: string, state: string): Promise<LatLng | null> {
   return req;
 }
 
-function equipmentLabel(load: Load, catalog?: RateCatalog): string {
-  return catalog?.cards.find((card) => card.equipment_key === load.equipment_type)?.label
-    || load.equipment_type.replaceAll('_', ' ');
-}
-
-interface LoadSheetProps {
-  load: Load;
-  index: number;
-  total: number;
-  catalog?: RateCatalog;
-  config?: PlatformConfig;
-  onPrev: () => void;
-  onNext: () => void;
-  onBook: (load: Load) => void;
-}
-
-const LoadSheet: React.FC<LoadSheetProps> = ({
-  load,
-  index,
-  total,
-  catalog,
-  config,
-  onPrev,
-  onNext,
-  onBook
-}) => {
-  const preview = settlementPreview(load.miles, load.rate_per_mile, config, {
-    factored: load.same_day_funding_offered
-  });
-  const pickup = lanePlace(load.origin_city, load.origin_state, load.origin_address);
-  const drop = lanePlace(load.dest_city, load.dest_state, load.dest_address);
-
-  return (
-    <article className="load-board-sheet" aria-live="polite">
-      <div className="flex items-center justify-between gap-3 mb-2">
-        <span className="eyebrow">Available load</span>
-        <div className="flex items-center gap-2">
-          <button
-            type="button"
-            className="load-board-step"
-            onClick={onPrev}
-            aria-label="Previous load"
-            disabled={total < 2}
-          >
-            ‹
-          </button>
-          <span className="font-mono text-[0.72rem] font-bold uppercase tracking-wider text-[#5B6168]">
-            {index + 1} of {total}
-          </span>
-          <button
-            type="button"
-            className="load-board-step"
-            onClick={onNext}
-            aria-label="Next load"
-            disabled={total < 2}
-          >
-            ›
-          </button>
-        </div>
-      </div>
-
-      <p className="font-mono text-[0.68rem] font-bold uppercase tracking-wider text-[#0F5132] mb-0.5">
-        Pickup
-      </p>
-      <h3 className="text-lg font-serif font-black uppercase leading-tight text-[#14171A] mb-1">
-        {pickup}
-      </h3>
-      <p className="font-mono text-[0.72rem] text-[#5B6168] mb-2">
-        Drop {drop}
-      </p>
-
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <div className="font-serif font-black text-2xl leading-tight whitespace-nowrap text-[#14171A]">
-            {usd(preview.gross)}
-          </div>
-          <div className="font-mono text-[0.72rem] text-[#5B6168] mt-1">
-            {preview.miles.toLocaleString()} mi · {equipmentLabel(load, catalog)} · net {usd(preview.net)} after {pctLabel(preview.feePct)}
-          </div>
-        </div>
-        <button
-          type="button"
-          onClick={() => onBook(load)}
-          className="btn primary py-2.5 px-4 text-xs shrink-0"
-        >
-          Book Load Direct
-        </button>
-      </div>
-    </article>
-  );
-};
-
 export const LoadBoardMap: React.FC<LoadBoardMapProps> = ({
   loads,
   focusedId,
-  catalog,
-  config,
-  onFocus,
-  onBook
+  onFocus
 }) => {
   const mapElRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<L.Map | null>(null);
@@ -200,7 +117,6 @@ export const LoadBoardMap: React.FC<LoadBoardMapProps> = ({
     () => loads.find((load) => load.id === focusedId) ?? loads[0] ?? null,
     [loads, focusedId]
   );
-  const focusedIndex = focused ? Math.max(0, loads.findIndex((load) => load.id === focused.id)) : 0;
 
   useEffect(() => {
     let cancelled = false;
@@ -346,7 +262,7 @@ export const LoadBoardMap: React.FC<LoadBoardMapProps> = ({
     const dest = pinFor(focused).drop;
     if (origin) {
       pickupRef.current = L.marker([origin.lat, origin.lng], {
-        icon: stopIcon('pickup'),
+        icon: stopIcon('pickup', `${focused.origin_city} ${focused.origin_state}`),
         zIndexOffset: 600,
         keyboard: false
       })
@@ -355,7 +271,7 @@ export const LoadBoardMap: React.FC<LoadBoardMapProps> = ({
     }
     if (dest) {
       dropRef.current = L.marker([dest.lat, dest.lng], {
-        icon: stopIcon('drop'),
+        icon: stopIcon('drop', `${focused.dest_city} ${focused.dest_state}`),
         zIndexOffset: 600,
         keyboard: false
       })
@@ -376,8 +292,8 @@ export const LoadBoardMap: React.FC<LoadBoardMapProps> = ({
         opacity: 0.9
       }).addTo(map);
       map.fitBounds(lineRef.current.getBounds(), {
-        paddingTopLeft: [28, 36],
-        paddingBottomRight: [28, 150],
+        paddingTopLeft: [90, 36],
+        paddingBottomRight: [90, 64],
         maxZoom: 11
       });
     } else if (origin) {
@@ -385,30 +301,14 @@ export const LoadBoardMap: React.FC<LoadBoardMapProps> = ({
     }
   }, [focused, geometry, extraPins]);
 
-  const step = (dir: number) => {
-    if (loads.length === 0) return;
-    const next = (focusedIndex + dir + loads.length) % loads.length;
-    onFocus(loads[next].id);
-  };
+  const range = pickupRange(loads);
 
   return (
-    <div className="load-board-stage mb-10">
+    <div className="load-board-stage mb-8">
       <div ref={mapElRef} className="lane-map load-board-map" role="application" aria-label="Available load map" />
-      <p className="load-board-legend">
-        Mile pins are pickups. Open a load to see the dock and the drop.
+      <p className="load-board-count">
+        {loads.length} load{loads.length === 1 ? '' : 's'}{range ? ` · ${range}` : ''}
       </p>
-      {focused ? (
-        <LoadSheet
-          load={focused}
-          index={focusedIndex}
-          total={loads.length}
-          catalog={catalog}
-          config={config}
-          onPrev={() => step(-1)}
-          onNext={() => step(1)}
-          onBook={onBook}
-        />
-      ) : null}
     </div>
   );
 };

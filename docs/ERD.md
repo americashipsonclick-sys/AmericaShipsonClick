@@ -14,7 +14,7 @@ tables. Messaging and email are not in this database yet.
 | Domain | Tables | What the database decides |
 | --- | --- | --- |
 | Identity | `users`, `driver_profiles`, `shipper_profiles`, `driver_documents`, `driver_equipment`, `driver_payment_accounts`, `verification_reviews` | Who may act. Admin cannot be self-served. A carrier cannot mark themselves verified. |
-| Freight | `loads`, `bookings`, `booking_locations`, `load_events`, `load_offers` | One live booking per load. Illegal status jumps are rejected. Offers accept atomically. GPS points come only from the booked driver while the trip is active, and reaching a stop logs the arrival once. |
+| Freight | `loads`, `load_photos`, `bookings`, `booking_locations`, `load_events`, `load_offers` | One live booking per load. Illegal status jumps are rejected. Offers accept atomically. GPS points come only from the booked driver while the trip is active, and reaching a stop logs the arrival once. A load has at most three photos, changed only by its shipper or an admin while it is open. |
 | Open Books | `settlements`, `settlement_disputes`, `settlement_adjustments`, `platform_config` | `net = gross − fee − factor`. Settlements are append-only. Corrections are additive. |
 | Ops | `refresh_tokens`, `password_reset_tokens`, `idempotency_keys`, `api_rate_limits`, `auth_login_attempts`, `audit_log`, `notifications`, `notification_preferences`, `ratings` | Sessions, throttles, and reputation survive restarts. |
 | Phase 1 token | `wallets`, `chain_contracts`, `webhook_receipts`, `contract_events`, `token_buys`, `token_positions`, `app_memberships`, `premium_attestations`, `hourly_epochs`, `transaction_reserves`, `hourly_claims`, `driver_payouts` | Buy-in, 30-day lock, 1× vs 5× never stacked, holder claims cannot exceed 7% of the 10% reserve. Driver payouts are USDC on Base only. |
@@ -38,6 +38,8 @@ erDiagram
 
     shipper_profiles ||--o{ loads : "posts"
 
+    loads ||--o{ load_photos : "pictured by"
+    uploaded_files ||--o| load_photos : "bytes"
     loads ||--o{ bookings : "claimed by"
     loads ||--o{ load_events : "timeline"
     loads ||--o{ load_offers : "bids"
@@ -69,6 +71,30 @@ erDiagram
         text origin_street "nullable dock / street"
         text origin_zip "nullable 5-digit ZIP"
         text origin_address "nullable full pickup label"
+        text load_type "nullable full_truckload partial"
+        text pickup_appt_start "nullable HH:MM"
+        text pickup_dock "nullable"
+        text delivery_date "nullable"
+        integer pallets "nullable"
+        text commodity "nullable"
+        boolean hazmat "null means not stated"
+        boolean requires_twic
+        text payment_terms "nullable, shipper's words"
+    }
+
+    load_photos {
+        text id PK
+        text load_id FK
+        text file_id FK,UK "uploaded_files; never sent to clients"
+        text caption "nullable"
+        timestamptz created_at
+    }
+
+    uploaded_files {
+        text id PK
+        text content_type
+        integer size_bytes
+        bytea data
     }
 
     bookings {
@@ -198,7 +224,7 @@ Hourly bonus weights: regular = 1× staked balance, premium = 5× instead (never
 | `public_ledger_view` | Public | Settlements joined to lanes, no identities |
 | `settlement_totals_view` | Public | Real aggregates, never counters |
 | `settlement_effective_view` | Public | Original net plus adjustments |
-| `public_shipper_view` | Public | Company name only, so the board can join past billing RLS |
+| `public_shipper_view` | Public | Company name, member-since date and loads posted, so the board can join past billing RLS |
 | `driver_reputation_view` / `shipper_reputation_view` | Public aggregates | Scores without rater identity |
 | `driver_earnings_view` / `shipper_spend_view` | Self-scoping | Identity filter lives in the view |
 | `lane_rate_stats_view` | Public, n ≥ 3 | Lane pricing that cannot dox a thin shipper |

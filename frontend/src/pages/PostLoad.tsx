@@ -1,9 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '../lib/api';
 import { EquipmentType, GeoPlace, User } from '../types/api';
 import { pctLabel, settlementPreview, usd } from '../lib/settlementPreview';
 import { LaneMap } from '../components/LaneMap';
+import { MAX_LOAD_PHOTOS, PHOTO_ACCEPT, shrinkPhoto } from '../lib/loadPhotos';
 
 interface PostLoadProps {
   currentUser: User | null;
@@ -18,6 +19,37 @@ function localISODate(): string {
   const day = String(d.getDate()).padStart(2, '0');
   return `${y}-${m}-${day}`;
 }
+
+interface PendingPhoto {
+  key: string;
+  file: File;
+  url: string;
+  caption: string;
+}
+
+const LABEL_CLASS = 'block text-xs font-mono font-bold uppercase text-[#5B6168] mb-1';
+const INPUT_CLASS = 'w-full p-2.5 bg-[#F0EAD8] border border-[#E4DCC4] rounded text-sm font-mono';
+
+/** The optional fields of a load, as typed; blanks are left out of the request. */
+const EMPTY_DETAILS = {
+  load_type: '',
+  pickup_appt_start: '',
+  pickup_appt_end: '',
+  pickup_dock: '',
+  pickup_parking: '',
+  pickup_checkin: '',
+  delivery_date: '',
+  delivery_appt_start: '',
+  delivery_appt_end: '',
+  delivery_dock: '',
+  delivery_parking: '',
+  receiving_hours: '',
+  pallets: '',
+  commodity: '',
+  temperature_f: '',
+  hazmat: '',
+  payment_terms: ''
+};
 
 export const PostLoad: React.FC<PostLoadProps> = ({ currentUser, onOpenAuth, setActiveTab }) => {
   const queryClient = useQueryClient();
@@ -47,7 +79,12 @@ export const PostLoad: React.FC<PostLoadProps> = ({ currentUser, onOpenAuth, set
   const [pickupDate, setPickupDate] = useState<string>(localISODate);
   const [weightLbs, setWeightLbs] = useState<number>(42000);
   const [sameDayFundingOffered, setSameDayFundingOffered] = useState<boolean>(false);
-  const [notes, setNotes] = useState<string>('Palletized freight, clean trailer');
+  const [notes, setNotes] = useState<string>('');
+  const [details, setDetails] = useState(EMPTY_DETAILS);
+  const [requiresTwic, setRequiresTwic] = useState(false);
+  const [requiresTeam, setRequiresTeam] = useState(false);
+  const [requiresLoadBars, setRequiresLoadBars] = useState(false);
+  const [photos, setPhotos] = useState<PendingPhoto[]>([]);
   const [deadheadMiles, setDeadheadMiles] = useState<number>(0);
   const [demandMultiplier, setDemandMultiplier] = useState<number>(1);
   const [express, setExpress] = useState(false);
@@ -78,14 +115,55 @@ export const PostLoad: React.FC<PostLoadProps> = ({ currentUser, onOpenAuth, set
     factored: sameDayFundingOffered
   });
 
+  const photosRef = useRef(photos);
+  photosRef.current = photos;
+  useEffect(() => () => photosRef.current.forEach((photo) => URL.revokeObjectURL(photo.url)), []);
+
+  const addPhotos = (files: FileList | null) => {
+    if (!files) return;
+    const room = MAX_LOAD_PHOTOS - photos.length;
+    const added = Array.from(files).slice(0, room).map((file) => ({
+      key: `${file.name}-${file.lastModified}-${Math.random()}`,
+      file,
+      url: URL.createObjectURL(file),
+      caption: ''
+    }));
+    setPhotos((prev) => [...prev, ...added]);
+  };
+
+  const removePhoto = (key: string) => {
+    setPhotos((prev) => prev.filter((photo) => {
+      if (photo.key === key) URL.revokeObjectURL(photo.url);
+      return photo.key !== key;
+    }));
+  };
+
+  const setDetail = (field: keyof typeof EMPTY_DETAILS) => (
+    e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>
+  ) => setDetails((prev) => ({ ...prev, [field]: e.target.value }));
+
   const createLoadMutation = useMutation({
-    mutationFn: (data: Parameters<typeof api.createLoad>[0]) => api.createLoad(data),
-    onSuccess: (newLoad) => {
+    mutationFn: async (data: Parameters<typeof api.createLoad>[0]) => {
+      const newLoad = await api.createLoad(data);
+      // The load is posted by now, so a failed photo must not read as a failed post.
+      const failed: string[] = [];
+      for (const photo of photos) {
+        try {
+          await api.addLoadPhoto(newLoad.id, await shrinkPhoto(photo.file), photo.caption);
+        } catch (err) {
+          failed.push(`${photo.file.name}: ${err instanceof Error ? err.message : 'upload failed'}`);
+        }
+      }
+      return { newLoad, failed };
+    },
+    onSuccess: ({ newLoad, failed }) => {
       setSuccessMsg(`Load ${newLoad.id} posted at $${Number(newLoad.rate_per_mile).toFixed(2)}/mi.`);
-      setErrorMsg(null);
+      setErrorMsg(failed.length
+        ? `Load posted, but these photos did not upload (you can add them from your dashboard): ${failed.join('; ')}`
+        : null);
       queryClient.invalidateQueries({ queryKey: ['loads'] });
       queryClient.invalidateQueries({ queryKey: ['shipper-locations'] });
-      setTimeout(() => setActiveTab('dashboard'), 700);
+      setTimeout(() => setActiveTab('dashboard'), failed.length ? 6000 : 700);
     },
     onError: (err: Error) => {
       setErrorMsg(err.message || 'Failed to post load');
@@ -112,8 +190,24 @@ export const PostLoad: React.FC<PostLoadProps> = ({ currentUser, onOpenAuth, set
       return;
     }
 
+    if (details.delivery_date && details.delivery_date < pickupDate) {
+      setErrorMsg('Delivery date cannot be before the pickup date.');
+      return;
+    }
+    if (details.pickup_appt_start && details.pickup_appt_end && details.pickup_appt_end <= details.pickup_appt_start) {
+      setErrorMsg('Pickup appointment must end after it starts.');
+      return;
+    }
+    if (details.delivery_appt_start && details.delivery_appt_end && details.delivery_appt_end <= details.delivery_appt_start) {
+      setErrorMsg('Delivery appointment must end after it starts.');
+      return;
+    }
+
     setErrorMsg(null);
     setSuccessMsg(null);
+
+    const stated = (value: string) => value.trim() || undefined;
+    const statedNumber = (value: string) => (value.trim() === '' ? undefined : Number(value));
 
     createLoadMutation.mutate({
       origin_city: origin.city,
@@ -140,7 +234,27 @@ export const PostLoad: React.FC<PostLoadProps> = ({ currentUser, onOpenAuth, set
       deadhead_miles: deadheadMiles,
       demand_multiplier: demandMultiplier,
       express,
-      accessorial_codes: accessorials
+      accessorial_codes: accessorials,
+      load_type: (details.load_type || undefined) as 'full_truckload' | 'partial' | undefined,
+      pickup_appt_start: stated(details.pickup_appt_start),
+      pickup_appt_end: stated(details.pickup_appt_end),
+      pickup_dock: stated(details.pickup_dock),
+      pickup_parking: stated(details.pickup_parking),
+      pickup_checkin: stated(details.pickup_checkin),
+      delivery_date: stated(details.delivery_date),
+      delivery_appt_start: stated(details.delivery_appt_start),
+      delivery_appt_end: stated(details.delivery_appt_end),
+      delivery_dock: stated(details.delivery_dock),
+      delivery_parking: stated(details.delivery_parking),
+      receiving_hours: stated(details.receiving_hours),
+      pallets: statedNumber(details.pallets),
+      commodity: stated(details.commodity),
+      temperature_f: statedNumber(details.temperature_f),
+      hazmat: details.hazmat === '' ? undefined : details.hazmat === 'yes',
+      requires_twic: requiresTwic,
+      requires_team: requiresTeam,
+      requires_load_bars: requiresLoadBars,
+      payment_terms: stated(details.payment_terms)
     });
   };
 
@@ -343,17 +457,182 @@ export const PostLoad: React.FC<PostLoadProps> = ({ currentUser, onOpenAuth, set
               </label>
             </div>
 
+            <h3 className="text-lg font-display-title pt-4 border-t border-[#E4DCC4]">Freight</h3>
+            <p className="font-mono text-[0.7rem] text-[#5B6168] -mt-3">
+              Everything from here down is optional. Drivers see what you fill in; blanks stay off the load.
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label htmlFor="load-type" className={LABEL_CLASS}>Load type</label>
+                <select id="load-type" value={details.load_type} onChange={setDetail('load_type')} className={INPUT_CLASS}>
+                  <option value="">Not stated</option>
+                  <option value="full_truckload">Full truckload</option>
+                  <option value="partial">Partial</option>
+                </select>
+              </div>
+              <div>
+                <label htmlFor="pallets" className={LABEL_CLASS}>Pallets</label>
+                <input id="pallets" type="number" min={1} max={60} value={details.pallets} onChange={setDetail('pallets')} className={INPUT_CLASS} />
+              </div>
+              <div>
+                <label htmlFor="commodity" className={LABEL_CLASS}>Commodity</label>
+                <input id="commodity" type="text" maxLength={120} value={details.commodity} onChange={setDetail('commodity')} placeholder="Packaged dry foods" className={INPUT_CLASS} />
+              </div>
+              <div>
+                <label htmlFor="temperature" className={LABEL_CLASS}>Temperature (°F)</label>
+                <input id="temperature" type="number" min={-40} max={120} value={details.temperature_f} onChange={setDetail('temperature_f')} placeholder="Reefer only" className={INPUT_CLASS} />
+              </div>
+              <div>
+                <label htmlFor="hazmat" className={LABEL_CLASS}>Hazmat</label>
+                <select id="hazmat" value={details.hazmat} onChange={setDetail('hazmat')} className={INPUT_CLASS}>
+                  <option value="">Not stated</option>
+                  <option value="no">No</option>
+                  <option value="yes">Yes</option>
+                </select>
+              </div>
+              <div>
+                <label htmlFor="payment-terms" className={LABEL_CLASS}>Payment terms</label>
+                <input id="payment-terms" type="text" maxLength={120} value={details.payment_terms} onChange={setDetail('payment_terms')} placeholder="How and when you pay" className={INPUT_CLASS} />
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-4 font-mono text-xs">
+              <span className="uppercase font-bold text-[#5B6168]">Requires:</span>
+              {([
+                ['TWIC', requiresTwic, setRequiresTwic],
+                ['Team', requiresTeam, setRequiresTeam],
+                ['Load bars', requiresLoadBars, setRequiresLoadBars]
+              ] as const).map(([label, checked, set]) => (
+                <label key={label} className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={(e) => set(e.target.checked)}
+                    className="w-4 h-4 accent-[#0F5132]"
+                  />
+                  <span>{label}</span>
+                </label>
+              ))}
+            </div>
+
             <div>
-              <label className="block text-xs font-mono font-bold uppercase text-[#5B6168] mb-1">
-                Commodity &amp; Special Handling Notes
-              </label>
+              <label htmlFor="notes" className={LABEL_CLASS}>Special handling notes</label>
               <textarea
+                id="notes"
                 rows={2}
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
-                placeholder="26 pallets non-hazmat dry goods"
+                placeholder="Palletized freight, clean trailer"
                 className="w-full p-2.5 bg-[#F0EAD8] border border-[#E4DCC4] rounded text-sm"
               />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 pt-4 border-t border-[#E4DCC4]">
+              <fieldset className="space-y-3 min-w-0">
+                <legend className="text-lg font-display-title mb-2">Pickup</legend>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="pickup-from" className={LABEL_CLASS}>Appt from</label>
+                    <input id="pickup-from" type="time" value={details.pickup_appt_start} onChange={setDetail('pickup_appt_start')} className={INPUT_CLASS} />
+                  </div>
+                  <div>
+                    <label htmlFor="pickup-to" className={LABEL_CLASS}>Appt to</label>
+                    <input id="pickup-to" type="time" value={details.pickup_appt_end} onChange={setDetail('pickup_appt_end')} className={INPUT_CLASS} />
+                  </div>
+                </div>
+                <div>
+                  <label htmlFor="pickup-dock" className={LABEL_CLASS}>Dock</label>
+                  <input id="pickup-dock" type="text" maxLength={60} value={details.pickup_dock} onChange={setDetail('pickup_dock')} className={INPUT_CLASS} />
+                </div>
+                <div>
+                  <label htmlFor="pickup-parking" className={LABEL_CLASS}>Parking / staging</label>
+                  <textarea id="pickup-parking" rows={2} maxLength={300} value={details.pickup_parking} onChange={setDetail('pickup_parking')} className={INPUT_CLASS} />
+                </div>
+                <div>
+                  <label htmlFor="pickup-checkin" className={LABEL_CLASS}>Check-in</label>
+                  <textarea id="pickup-checkin" rows={2} maxLength={300} value={details.pickup_checkin} onChange={setDetail('pickup_checkin')} className={INPUT_CLASS} />
+                </div>
+              </fieldset>
+
+              <fieldset className="space-y-3 min-w-0">
+                <legend className="text-lg font-display-title mb-2">Delivery</legend>
+                <div>
+                  <label htmlFor="delivery-date" className={LABEL_CLASS}>Delivery date</label>
+                  <input id="delivery-date" type="date" min={pickupDate} value={details.delivery_date} onChange={setDetail('delivery_date')} className={INPUT_CLASS} />
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label htmlFor="delivery-from" className={LABEL_CLASS}>Appt from</label>
+                    <input id="delivery-from" type="time" value={details.delivery_appt_start} onChange={setDetail('delivery_appt_start')} className={INPUT_CLASS} />
+                  </div>
+                  <div>
+                    <label htmlFor="delivery-to" className={LABEL_CLASS}>Appt to</label>
+                    <input id="delivery-to" type="time" value={details.delivery_appt_end} onChange={setDetail('delivery_appt_end')} className={INPUT_CLASS} />
+                  </div>
+                </div>
+                <div>
+                  <label htmlFor="delivery-dock" className={LABEL_CLASS}>Dock</label>
+                  <input id="delivery-dock" type="text" maxLength={60} value={details.delivery_dock} onChange={setDetail('delivery_dock')} className={INPUT_CLASS} />
+                </div>
+                <div>
+                  <label htmlFor="delivery-parking" className={LABEL_CLASS}>Parking</label>
+                  <textarea id="delivery-parking" rows={2} maxLength={300} value={details.delivery_parking} onChange={setDetail('delivery_parking')} className={INPUT_CLASS} />
+                </div>
+                <div>
+                  <label htmlFor="receiving-hours" className={LABEL_CLASS}>Receiving hours</label>
+                  <input id="receiving-hours" type="text" maxLength={120} value={details.receiving_hours} onChange={setDetail('receiving_hours')} placeholder="Mon–Fri 06:00–15:00" className={INPUT_CLASS} />
+                </div>
+              </fieldset>
+            </div>
+
+            <div className="pt-4 border-t border-[#E4DCC4]">
+              <h3 className="text-lg font-display-title mb-1">Freight photos</h3>
+              <p className="font-mono text-[0.7rem] text-[#5B6168] mb-3">
+                Up to {MAX_LOAD_PHOTOS} photos so drivers can see what they are hauling. JPEG, PNG or WebP. You can also add them later from your dashboard.
+              </p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                {photos.map((photo) => (
+                  <div key={photo.key} className="min-w-0 space-y-1">
+                    <img src={photo.url} alt={photo.file.name} className="w-full aspect-[4/3] object-cover border-2 border-[#14171A]" />
+                    <input
+                      type="text"
+                      maxLength={120}
+                      value={photo.caption}
+                      aria-label={`Caption for ${photo.file.name}`}
+                      placeholder="Caption (optional)"
+                      onChange={(e) => {
+                        const caption = e.target.value;
+                        setPhotos((prev) => prev.map((p) => (p.key === photo.key ? { ...p, caption } : p)));
+                      }}
+                      className="w-full p-2 bg-[#F0EAD8] border border-[#E4DCC4] rounded text-xs font-mono"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removePhoto(photo.key)}
+                      className="font-mono text-[0.7rem] font-bold uppercase text-[#8C2F1B] underline bg-transparent border-none p-0 cursor-pointer"
+                    >
+                      Remove
+                    </button>
+                  </div>
+                ))}
+                {photos.length < MAX_LOAD_PHOTOS && (
+                  <label className="btn ghost flex items-center justify-center aspect-[4/3] text-xs cursor-pointer text-center">
+                    Add photos
+                    <input
+                      type="file"
+                      accept={PHOTO_ACCEPT}
+                      multiple
+                      aria-label="Add freight photos"
+                      className="sr-only"
+                      onChange={(e) => {
+                        addPhotos(e.target.files);
+                        e.target.value = '';
+                      }}
+                    />
+                  </label>
+                )}
+              </div>
             </div>
 
             <button
@@ -361,7 +640,9 @@ export const PostLoad: React.FC<PostLoadProps> = ({ currentUser, onOpenAuth, set
               disabled={createLoadMutation.isPending}
               className="btn primary block w-full py-3 mt-4"
             >
-              {createLoadMutation.isPending ? 'Publishing Load...' : 'Accept quote and publish'}
+              {createLoadMutation.isPending
+                ? (photos.length ? 'Publishing load and photos...' : 'Publishing Load...')
+                : 'Accept quote and publish'}
             </button>
           </form>
 

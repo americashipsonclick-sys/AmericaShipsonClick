@@ -146,6 +146,36 @@ export interface Load {
   same_day_funding_offered: boolean;
   status: LoadStatus;
   created_at: string;
+  load_type?: 'full_truckload' | 'partial' | null;
+  pickup_appt_start?: string | null;
+  pickup_appt_end?: string | null;
+  pickup_dock?: string | null;
+  pickup_parking?: string | null;
+  pickup_checkin?: string | null;
+  delivery_date?: string | null;
+  delivery_appt_start?: string | null;
+  delivery_appt_end?: string | null;
+  delivery_dock?: string | null;
+  delivery_parking?: string | null;
+  receiving_hours?: string | null;
+  pallets?: number | null;
+  commodity?: string | null;
+  temperature_f?: number | null;
+  hazmat?: boolean | null;
+  requires_twic?: boolean;
+  requires_team?: boolean;
+  requires_load_bars?: boolean;
+  payment_terms?: string | null;
+  // GET /loads/:id only
+  shipper_member_since?: string;
+  shipper_loads_posted?: number;
+  photos?: LoadPhoto[];
+}
+
+export interface LoadPhoto {
+  id: string;
+  caption: string | null;
+  created_at: string;
 }
 
 export interface Booking {

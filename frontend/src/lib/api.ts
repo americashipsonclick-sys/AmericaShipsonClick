@@ -3,6 +3,7 @@ import {
   GeoPlace,
   GeoRoute,
   Load,
+  LoadPhoto,
   Booking,
   BookingWithLoad,
   PublicLedgerItem,
@@ -174,12 +175,13 @@ export const api = {
   },
 
   // Loads
-  async getLoads(filters?: { origin?: string; destination?: string; equipment?: string; minRate?: number; status?: string }): Promise<Load[]> {
+  async getLoads(filters?: { origin?: string; destination?: string; equipment?: string; minRate?: number; pickupDate?: string; status?: string }): Promise<Load[]> {
     const params = new URLSearchParams();
     if (filters?.origin) params.set('origin', filters.origin);
     if (filters?.destination) params.set('destination', filters.destination);
     if (filters?.equipment) params.set('equipment', filters.equipment);
     if (filters?.minRate) params.set('minRate', filters.minRate.toString());
+    if (filters?.pickupDate) params.set('pickupDate', filters.pickupDate);
     if (filters?.status) params.set('status', filters.status);
 
     const res = await fetch(`${API_BASE}/loads?${params.toString()}`, {
@@ -217,6 +219,35 @@ export const api = {
       body: JSON.stringify(loadData)
     });
     return handleResponse<Load>(res);
+  },
+
+  async addLoadPhoto(loadId: string, photo: Blob, caption?: string): Promise<LoadPhoto> {
+    const formData = new FormData();
+    formData.append('photo', photo, 'freight-photo');
+    if (caption?.trim()) formData.append('caption', caption.trim());
+
+    const res = await fetch(`${API_BASE}/loads/${loadId}/photos`, {
+      method: 'POST',
+      headers: getAuthHeaders(),
+      body: formData
+    });
+    return handleResponse<LoadPhoto>(res);
+  },
+
+  async removeLoadPhoto(loadId: string, photoId: string): Promise<void> {
+    const res = await fetch(`${API_BASE}/loads/${loadId}/photos/${photoId}`, {
+      method: 'DELETE',
+      headers: getAuthHeaders()
+    });
+    if (!res.ok) await handleResponse(res);
+  },
+
+  async getLoadPhoto(loadId: string, photoId: string): Promise<Blob> {
+    const res = await fetch(`${API_BASE}/loads/${loadId}/photos/${photoId}`, {
+      headers: getAuthHeaders()
+    });
+    if (!res.ok) await handleResponse(res);
+    return res.blob();
   },
 
   // Bookings
