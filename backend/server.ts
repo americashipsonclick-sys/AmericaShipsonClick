@@ -59,7 +59,6 @@ async function startServer() {
       service: 'America Ships On Click API',
       database: {
         driver: dbInfo.driver,
-        target: dbInfo.description,
         reachable: dbReachable
       }
     });
