@@ -1,6 +1,6 @@
 import React from 'react';
 
-const UPDATED = 'September 27, 2026';
+const UPDATED = 'November 7, 2026';
 
 function Section({ heading, children }: { heading: string; children: React.ReactNode }) {
   return (
