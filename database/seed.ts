@@ -171,7 +171,6 @@ async function seedHistoricalSettlements(tx: Queryable): Promise<void> {
   const cfg: Record<string, number> = {};
   cfgRes.rows.forEach(r => (cfg[r.key] = parseFloat(r.value)));
 
-  const feePct = cfg['fee_pct'] ?? 0.07;
   const factorPct = cfg['factor_pct'] ?? 0.03;
 
   for (let i = 1; i <= 18; i++) {
@@ -185,10 +184,9 @@ async function seedHistoricalSettlements(tx: Queryable): Promise<void> {
     const miles = lane.miles;
     const ratePerMile = +(2.05 + Math.random() * 1.1).toFixed(2);
     const gross = miles * ratePerMile;
-    const feeAmount = gross * feePct;
     const factored = i % 3 === 0;
     const factorCost = factored ? gross * factorPct : 0;
-    const net = gross - feeAmount - factorCost;
+    const net = gross - factorCost;
 
     const daysAgo = 18 - i;
     const settledAt = new Date(Date.now() - daysAgo * 3600 * 1000 * 12 - Math.random() * 3600000).toISOString();
@@ -208,13 +206,13 @@ async function seedHistoricalSettlements(tx: Queryable): Promise<void> {
     await tx.query(`
       INSERT INTO settlements (
         id, booking_id, load_id, miles, rate_per_mile,
-        gross_amount, fee_amount, fee_pct_applied, factor_cost, factored, net_amount, settled_at
+        gross_amount, factor_cost, factored, net_amount, settled_at
       )
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       ON CONFLICT DO NOTHING
     `, [
       settlementId, bookingId, loadId, miles, ratePerMile,
-      gross, feeAmount, feePct, factorCost, factored, net, settledAt
+      gross, factorCost, factored, net, settledAt
     ]);
   }
 }

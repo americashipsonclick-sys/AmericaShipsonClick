@@ -51,9 +51,13 @@ export const Navbar: React.FC<NavbarProps> = ({
           className="flex min-w-0 items-center gap-3 text-left group"
           aria-label="America Ships On Click — Home"
         >
-          <div className="w-9 h-9 shrink-0 bg-[#E3A008] text-[#14171A] font-black font-mono text-xl flex items-center justify-center border-2 border-[#F0EAD8] shadow-[2px_2px_0px_#F0EAD8] group-hover:translate-x-0.5 transition-transform" aria-hidden="true">
-            A
-          </div>
+          <img
+            src="/logo-mark.svg"
+            alt=""
+            width={36}
+            height={36}
+            className="w-9 h-9 shrink-0 bg-[#E3A008] border-2 border-[#F0EAD8] shadow-[2px_2px_0px_#F0EAD8] group-hover:translate-x-0.5 transition-transform"
+          />
           <span className="min-w-0 font-serif font-black text-base sm:text-xl tracking-tight uppercase leading-none text-[#F0EAD8]">
             America Ships On Click
             <small className="hidden sm:block font-mono text-[#E3A008] text-[0.78rem] font-bold tracking-widest mt-1">

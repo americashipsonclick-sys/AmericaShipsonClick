@@ -46,7 +46,6 @@ export interface AccessorialFee {
 export interface RateCatalog {
   cards: RateCard[];
   accessorials: AccessorialFee[];
-  quote_gross_pct: number;
   default_demand_multiplier: number;
 }
 
@@ -55,8 +54,7 @@ export async function loadRateCatalog(db: Queryable): Promise<RateCatalog> {
     db.query(`SELECT * FROM equipment_rate_cards ORDER BY sort_order`),
     db.query(`SELECT code, label, amount, description FROM accessorial_fees ORDER BY code`),
     db.query<{ key: string; value: string }>(
-      `SELECT key, value FROM platform_config WHERE key IN
-        ('quote_gross_pct', 'default_demand_multiplier')`
+      `SELECT key, value FROM platform_config WHERE key = 'default_demand_multiplier'`
     )
   ]);
 
@@ -71,7 +69,6 @@ export async function loadRateCatalog(db: Queryable): Promise<RateCatalog> {
       amount: n(r.amount),
       description: r.description ? String(r.description) : undefined
     })),
-    quote_gross_pct: cfg.quote_gross_pct ?? 0.07,
     default_demand_multiplier: cfg.default_demand_multiplier ?? 1
   };
 }
@@ -101,8 +98,7 @@ export async function quoteFor(
     deadhead_miles: input.deadhead_miles ?? 0,
     demand_multiplier: input.demand_multiplier ?? catalog.default_demand_multiplier,
     express: Boolean(input.express),
-    accessorials,
-    quote_gross_pct: catalog.quote_gross_pct
+    accessorials
   });
 
   return { catalog, card, quote };

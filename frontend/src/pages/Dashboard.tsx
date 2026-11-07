@@ -30,6 +30,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onOpenAuth, o
     queryFn: () => api.getSettlements(50, 1),
     enabled: !!currentUser
   });
+  // Only settlements from before the fee was removed carry one.
+  const adminHasPastFees = adminLedger.some((item: { fee_amount: number }) => Number(item.fee_amount) > 0);
+  const driverHasPastFees = settlements.some((s) => Number(s.fee_amount) > 0);
 
   const { data: bookings = [], isLoading: isLoadingBookings } = useQuery({
     queryKey: ['bookings'],
@@ -154,7 +157,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onOpenAuth, o
                     <th>Driver Name</th>
                     <th>Shipper Company</th>
                     <th>Gross Rate</th>
-                    <th>Fee</th>
+                    {adminHasPastFees && <th>Past Fee</th>}
                     <th>Net Amount</th>
                     <th>Settled Date</th>
                   </tr>
@@ -162,13 +165,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onOpenAuth, o
                 <tbody>
                   {isLoadingAdmin ? (
                     <tr>
-                      <td colSpan={8} className="text-center py-6 font-mono text-[#5B6168]">
+                      <td colSpan={adminHasPastFees ? 8 : 7} className="text-center py-6 font-mono text-[#5B6168]">
                         Loading admin ledger...
                       </td>
                     </tr>
                   ) : adminLedger.length === 0 ? (
                     <tr>
-                      <td colSpan={8} className="text-center py-6 font-mono text-[#5B6168]">
+                      <td colSpan={adminHasPastFees ? 8 : 7} className="text-center py-6 font-mono text-[#5B6168]">
                         No settlements found.
                       </td>
                     </tr>
@@ -182,7 +185,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onOpenAuth, o
                         <td>{item.driver_name || 'Driver'}</td>
                         <td>{item.shipper_name || 'Shipper'}</td>
                         <td>{usd(Number(item.gross_amount))}</td>
-                        <td className="text-[#5B3D00]">{usd(Number(item.fee_amount))}</td>
+                        {adminHasPastFees && <td className="text-[#5B3D00]">{usd(Number(item.fee_amount))}</td>}
                         <td className="text-[#0F5132] font-bold">{usd(Number(item.net_amount))}</td>
                         <td>{new Date(item.settled_at).toLocaleDateString()}</td>
                       </tr>
@@ -261,20 +264,20 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onOpenAuth, o
                       <th>Route</th>
                       <th>Miles</th>
                       <th>Rate / mi</th>
-                      <th>Fee</th>
+                      {driverHasPastFees && <th>Past Fee</th>}
                       <th>Net to Carrier</th>
                     </tr>
                   </thead>
                   <tbody>
                     {isLoadingSettlements ? (
                       <tr>
-                        <td colSpan={5} className="text-center py-6 font-mono text-[#5B6168]">
+                        <td colSpan={driverHasPastFees ? 5 : 4} className="text-center py-6 font-mono text-[#5B6168]">
                           Loading settlements...
                         </td>
                       </tr>
                     ) : settlements.length === 0 ? (
                       <tr>
-                        <td colSpan={5} className="text-center py-6 font-mono text-[#5B6168]">
+                        <td colSpan={driverHasPastFees ? 5 : 4} className="text-center py-6 font-mono text-[#5B6168]">
                           No settlements posted yet.
                         </td>
                       </tr>
@@ -286,7 +289,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ currentUser, onOpenAuth, o
                           </td>
                           <td>{Number(s.miles).toLocaleString()}</td>
                           <td>${Number(s.rate_per_mile).toFixed(2)}</td>
-                          <td className="text-[#5B3D00]">{usd(Number(s.fee_amount))}</td>
+                          {driverHasPastFees && <td className="text-[#5B3D00]">{usd(Number(s.fee_amount))}</td>}
                           <td className="text-[#0F5132] font-bold">{usd(Number(s.net_amount))}</td>
                         </tr>
                       ))

@@ -5,61 +5,53 @@ Every number the public ledger publishes is decided in one place: the
 [`backend/routes.ts:504`](../backend/routes.ts). Nothing the browser sends
 is trusted to price a load. The request body for that endpoint is empty — the
 route reads the booking, the load, and the current rates for itself, computes
-gross, fee, factor, and net, and writes a settlement row that the database
+gross, factor, and net, and writes a settlement row that the database
 then refuses to let anyone change. A driver can no more talk the server into a
 larger payout than a shipper can talk it into a smaller one, because neither of
 them is asked.
 
 ## The numbers
 
-A settlement is two subtractions off one product:
+A settlement is one subtraction off one product:
 
 ```
 gross  = miles x rate_per_mile
-fee    = gross x fee_pct                 platform's cut
 factor = gross x factor_pct  (or 0)      cost of same-day funding
-net    = gross - fee - factor            what the carrier takes home
+net    = gross - factor                  what the carrier takes home
 ```
 
-Both deductions scale with the money. The settlement used to subtract a modeled
-fuel cost as well; [`0023_drop_fuel.sql`](../database/migrations/0023_drop_fuel.sql)
-removed it and added it back into every past row's net.
+The platform takes no fee. [`0025_remove_platform_fee.sql`](../database/migrations/0025_remove_platform_fee.sql)
+removed it for new settlements. Past rows keep the fee they were charged, because
+that money really moved and the ledger is append-only. The settlement also used to
+subtract a modeled fuel cost; [`0023_drop_fuel.sql`](../database/migrations/0023_drop_fuel.sql)
+removed it and added it back into every past row's net, since nobody ever collected it.
 
 ## Where the rates come from
 
-`fee_pct` (0.07), `factor_pct` (0.03), and `broker_comparison_pct` (0.20) are rows in `platform_config`, seeded by
+`factor_pct` (0.03) and `broker_comparison_pct` (0.20) are rows in `platform_config`, seeded by
 [`0001_initial_schema.sql:171`](../database/migrations/0001_initial_schema.sql).
-`fee_pct` started at 0.05 and was raised to 0.07 by
-[`0021_platform_fee_7pct.sql`](../database/migrations/0021_platform_fee_7pct.sql).
 They are not constants in code, not environment variables, and not duplicated
-per load. Changing the platform fee is an `UPDATE` against one row.
+per load. Changing a rate is an `UPDATE` against one row.
 
 Both the server and the browser read them from the same table — the browser via
 `GET /api/config` ([`routes.ts:90`](../backend/routes.ts)), the settlement
 path via a direct `SELECT` inside its own transaction
 ([`routes.ts:538`](../backend/routes.ts)). Every read site carries the same
-`?? 0.07` / `?? 0.03` fallbacks, so a missing config row degrades to
-the seeded defaults instead of writing `NaN` into the ledger. The fallbacks are
-written out four times across `routes.ts`, `seed.ts`, `FindLoads.tsx`, and
-`PostLoad.tsx`; they agree today, and nothing enforces that they keep agreeing.
+`?? 0.03` fallback, so a missing config row degrades to
+the seeded default instead of writing `NaN` into the ledger. The fallback is
+written out across `routes.ts`, `seed.ts`, and `settlementPreview.ts`; they agree
+today, and nothing enforces that they keep agreeing.
 
-`broker_comparison_pct` is the one rate with no consumer. It is seeded, exposed
-by `/api/config`, and typed in `PlatformConfig`, but no page reads it — it exists
-for the "20% broker vs 7% us" comparison the marketing copy makes by hand.
+`broker_comparison_pct` drives the broker side of the homepage comparison.
 
-## Rates are copied onto the row, not referenced
+## Past fees stay on their rows
 
-`settlements` stores `fee_pct_applied` alongside the
-dollar amounts. This is deliberate duplication. If the ledger stored only dollar
-figures and the platform later moved the fee to 6%, every historical row would
-still be correct but unexplainable; if it stored a foreign key to
-`platform_config`, raising the fee would silently rewrite the past — a load
-settled in March would start displaying June's percentage.
-
-Copying the rate in at settlement time means a row carries its own justification.
-`gross_amount`, `fee_amount`, and `fee_pct_applied` together are checkable
-arithmetic three years later, with no knowledge of what the platform charges
-now.
+`settlements` keeps `fee_amount` and `fee_pct_applied` as history. New settlements
+leave them at their default of 0. A row settled at 5% or 7% still carries the rate
+and the dollars it was charged, so `gross_amount`, `fee_amount`, and
+`fee_pct_applied` remain checkable arithmetic with no knowledge of what the platform
+charges now. Open Books and the dashboards show a fee column only when the rows
+they list include a non-zero fee.
 
 ## Who decides the factor cost
 
@@ -79,6 +71,11 @@ for the carrier, whose cash-flow needs do not change lane by lane, but it means
 the shipper's own preview of the factor line is a guess about someone else's
 settings.
 
+The load board and load detail apply the same rule through `isFactored()`, using
+the signed-in driver's preference from `GET /auth/me`, so "You keep" matches what
+that driver is paid. New drivers start opted out and choose quick pay themselves
+during onboarding.
+
 ## The estimates match the ledger
 
 Three places in the product show a carrier's take-home, and all of them use the
@@ -87,9 +84,9 @@ ledger's formula through `settlementPreview`
 
 | Where | Formula | 780 mi @ $2.15 |
 | --- | --- | --- |
-| Load board card ([`FindLoads.tsx`](../frontend/src/pages/FindLoads.tsx)) | `gross - fee - factor` | **$1,559.61** (or $1,509.30 with quick pay) |
-| Post-a-load calculator ([`PostLoad.tsx`](../frontend/src/pages/PostLoad.tsx)) | `gross - fee - factor` | **$1,559.61** (or $1,509.30 with quick pay) |
-| Settlement ([`routes.ts`](../backend/routes.ts)) | `gross - fee - factor` | **$1,559.61** (or $1,509.30 factored) |
+| Load board card ([`FindLoads.tsx`](../frontend/src/pages/FindLoads.tsx)) | `gross - factor` | **$1,677.00** (or $1,626.69 with quick pay) |
+| Post-a-load calculator ([`PostLoad.tsx`](../frontend/src/pages/PostLoad.tsx)) | `gross - factor` | **$1,677.00** (or $1,626.69 with quick pay) |
+| Settlement ([`routes.ts`](../backend/routes.ts)) | `gross - factor` | **$1,677.00** (or $1,626.69 factored) |
 
 The one figure a preview can get wrong is the factor line, since the driver's
 own quick-pay setting decides it at settlement (see above).
@@ -109,9 +106,10 @@ CHECK (
 
 A settlement whose net does not follow from its own components is rejected —
 including one written by the owner role, by a migration, or by hand in `psql`.
-Alongside it, `settlements_non_negative` refuses negative money and
-`settlements_fee_pct_sane` caps the applied fee at 50%, so a stray decimal
-cannot mint a row claiming the platform took 500%.
+The fee term is 0 on new settlements and still balances past rows. Alongside it,
+`settlements_non_negative` refuses negative money and `settlements_fee_pct_sane`
+caps the applied fee at 50%, so a stray decimal cannot mint a row claiming the
+platform took 500%.
 
 The one-cent tolerance exists because the math is done in JavaScript doubles and
 compared against Postgres `NUMERIC`. It is a rounding allowance, not a fudge
@@ -120,8 +118,8 @@ dollars.
 
 ## Amounts are stored unrounded
 
-Nothing rounds to cents before the `INSERT`. `780 * 2.15 * 0.07` is
-`117.39000000000001` in IEEE 754, and the columns are unconstrained `NUMERIC`, so
+Nothing rounds to cents before the `INSERT`. `780 * 2.15 * 0.03` is
+`50.309999999999995` in IEEE 754, and the columns are unconstrained `NUMERIC`, so
 that is what the ledger holds. Every display path applies `.toFixed(2)`, so it
 is invisible in the UI and in the CSV export, and the balance CHECK tolerates it
 by design. It surfaces in two places: raw `SELECT`s against `settlements`, and

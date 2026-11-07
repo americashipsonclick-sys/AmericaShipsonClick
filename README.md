@@ -6,8 +6,8 @@
 
 ## 🚀 Architectural Highlights
 
-- **Single Source of Truth for Platform Fees**: Platform fee (7%), and quick pay / same-day funding cost (3%) live in the `platform_config` database table and are exposed via `GET /api/config`. The frontend dynamically fetches and applies these rates across the live calculator, load board take-home math, and booking confirmations.
-- **Server-Authoritative Settlement Math**: All fee, gross, factor, and carrier net calculations are executed server-side upon booking completion. The frontend never computes numbers independently from backend agreement.
+- **Single Source of Truth for Rates**: There is no platform fee. The quick pay / same-day funding cost (3%) lives in the `platform_config` database table and are exposed via `GET /api/config`. The frontend dynamically fetches and applies it across the live calculator, load board take-home math, and booking confirmations.
+- **Server-Authoritative Settlement Math**: All gross, factor, and carrier net calculations are executed server-side upon booking completion. The frontend never computes numbers independently from backend agreement.
 - **Real DB Aggregate View**: Headline stats (Loads Settled, Miles Hauled, Total Paid to Carriers) are computed directly via `settlement_totals_view` SQL query rather than incremented counters to ensure totals never drift from the underlying settlement rows.
 - **Transactional Double-Booking Protection**: Booking an open load runs on a single pooled connection inside one transaction, using explicit row locking (`FOR UPDATE`) and partial unique index constraints (`WHERE status NOT IN ('cancelled')`) to guarantee atomic single-driver bookings.
 - **Database-Enforced Security**: The server connects as a least-privilege role that cannot run DDL, delete rows, or read the audit log. Row-Level Security decides which rows each request may touch from the caller's verified identity, CHECK constraints make an unbalanced settlement or a plaintext password unwritable, settlements and audit rows are append-only, and every sensitive write is recorded by a trigger the application cannot bypass. See [Security model](#-security-model).
@@ -215,7 +215,7 @@ billing contacts.
 
 - `users.password_hash` must be a bcrypt digest — a plaintext password cannot be stored, whatever the application does.
 - `driver_payment_accounts.processor_account_id` rejects anything shaped like a bare account number.
-- `settlements` must balance: `net = gross - fee - factor` and `gross = miles x rate`, to the cent. A fabricated payout row is rejected even when written by the owner.
+- `settlements` must balance: `net = gross - fee - factor` (the fee is 0 on new settlements) and `gross = miles x rate`, to the cent. A fabricated payout row is rejected even when written by the owner.
 - Money and distance columns reject negative values; `fee_pct_applied` is capped at 50%.
 
 ### Append-only ledger and audit trail
@@ -340,7 +340,7 @@ JWT_SECRET="americashipsonclick_secret_jwt_key_2026"
 ## 📡 API Endpoints
 
 ### 1. Public & Config
-- `GET /api/config` — Fetches authoritative platform fee rates and settings
+- `GET /api/config` — Fetches authoritative rates and settings
 - `GET /api/health` — Server health check, including a live database round-trip (503 when the database is unreachable)
 
 ### 2. Authentication
@@ -398,15 +398,15 @@ JWT_SECRET="americashipsonclick_secret_jwt_key_2026"
 
 ### Database Views:
 - `public_ledger_view`: Joins settlements to loads while preserving driver/shipper anonymity.
-- `settlement_totals_view`: Aggregate query computing total count, miles, gross, fee, factor cost, and carrier net.
+- `settlement_totals_view`: Aggregate query computing total count, miles, gross, past fees, factor cost, and carrier net.
 
 ---
 
 ## 🧪 Testing the App
 
 1. **Preset Demo Logins**: Click "Sign In / Switch Role" in the top bar to instantly log in as a Driver (`john.smith@trucking.com`), Shipper (`logistics@apexlogistics.com`), or Admin (`admin@americashipsonclick.com`).
-2. **Find Loads**: Search and view loads. Notice carrier take-home pay is computed using fee % fetched from `/api/config`.
+2. **Find Loads**: Search and view loads. Notice carrier take-home pay is computed using the factor % fetched from `/api/config`.
 3. **Open Books**: Watch live settlements stream in via SSE. Note the donut chart and rate/mile bar chart.
 4. **Drive With Us**: Complete the 4-step wizard with file uploads. Progress persists across page refresh.
-5. **Post a Load**: Test the live fee calculator as you enter miles and rate.
+5. **Post a Load**: Test the live quote calculator as you enter miles and rate.
 6. **Dashboard**: View the auth-gated owner dashboard and download CSV exports.

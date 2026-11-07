@@ -270,7 +270,7 @@ export const PostLoad: React.FC<PostLoadProps> = ({ currentUser, onOpenAuth, set
         <span className="eyebrow block mb-1">Shipper Portal</span>
         <h2 className="text-2xl sm:text-3xl mb-2">Post a New Freight Load</h2>
         <p className="text-[#5B6168] mb-8">
-          Miles come from the map. Search the dock address, street, ZIP, or a city — or reuse a location you have posted before. Price comes from the equipment table: linehaul, distance minimum, deadhead buffer, accessorials, demand, express, then 7% gross.
+          Miles come from the map. Search the dock address, street, ZIP, or a city — or reuse a location you have posted before. Price comes from the equipment table: linehaul, distance minimum, deadhead buffer, accessorials, demand, and express.
         </p>
 
         {errorMsg && (
@@ -686,10 +686,6 @@ export const PostLoad: React.FC<PostLoadProps> = ({ currentUser, onOpenAuth, set
                     <span>{usd(quote.after_express)}</span>
                   </div>
                 )}
-                <div className="flex justify-between text-[#E3A008]">
-                  <span>7% gross:</span>
-                  <span>{usd(quote.gross_markup)}</span>
-                </div>
                 <div className="flex justify-between text-[#FAFAF7] font-bold text-sm pt-3 border-t border-dashed border-[#FAFAF7]/20">
                   <span>Quoted total / RPM:</span>
                   <span className="text-[#E3A008] text-base">
@@ -697,7 +693,7 @@ export const PostLoad: React.FC<PostLoadProps> = ({ currentUser, onOpenAuth, set
                   </span>
                 </div>
                 <div className="flex justify-between pt-2 text-[#C9CDD1]">
-                  <span>Ledger net after {pctLabel(preview.feePct)} fee:</span>
+                  <span>Ledger net:</span>
                   <span>{usd(preview.net)}</span>
                 </div>
               </div>
@@ -708,7 +704,7 @@ export const PostLoad: React.FC<PostLoadProps> = ({ currentUser, onOpenAuth, set
             )}
 
             <div className="mt-4 text-[0.78rem] font-mono text-[#C9CDD1] leading-relaxed">
-              The accepted total is logged so the table can be tuned later. Open Books takes {pctLabel(preview.feePct)} of posted gross.
+              The accepted total is logged so the table can be tuned later.
             </div>
           </div>
         </div>

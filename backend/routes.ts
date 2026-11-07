@@ -118,7 +118,7 @@ function sendError(res: Response, err: any): void {
 }
 
 // -------------------------------------------------------------
-// 1. CONFIG ENDPOINT - Authoritative Single Source of Truth for Fees
+// 1. CONFIG ENDPOINT - Authoritative Single Source of Truth for Rates
 // -------------------------------------------------------------
 apiRouter.post('/analytics/page', async (req, res) => {
   const parsed = z.object({ path: z.string().max(80) }).safeParse(req.body);
@@ -148,10 +148,8 @@ apiRouter.get('/config', async (req, res) => {
     });
 
     res.json({
-      fee_pct: configMap['fee_pct'] ?? 0.07,
       factor_pct: configMap['factor_pct'] ?? 0.03,
-      broker_comparison_pct: configMap['broker_comparison_pct'] ?? 0.20,
-      quote_gross_pct: configMap['quote_gross_pct'] ?? 0.07
+      broker_comparison_pct: configMap['broker_comparison_pct'] ?? 0.20
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -335,7 +333,7 @@ apiRouter.post('/auth/signup', async (req, res) => {
 
         await tx.query(`
           INSERT INTO driver_payment_accounts (id, driver_id, payment_processor, processor_account_id, same_day_funding_opt_in)
-          VALUES ($1, $2, 'stripe_connect', $3, TRUE)
+          VALUES ($1, $2, 'stripe_connect', $3, FALSE)
         `, ['pay-' + driverId, driverId, tokenizeBankAccount(driverId, newId('pending'))]);
       } else if (body.role === 'shipper') {
         shipperId = newId('shp');
@@ -462,9 +460,15 @@ apiRouter.get('/auth/me', authenticate, async (req: AuthenticatedRequest, res) =
   if (!req.user) return res.status(401).json({ error: 'Not authenticated' });
 
   let profileData: any = {};
+  let sameDayFundingOptIn: boolean | null = null;
   if (req.user.role === 'driver' && req.user.driverId) {
     const drv = await scoped(req).query('SELECT * FROM driver_profiles WHERE id = $1', [req.user.driverId]);
     profileData = drv.rows[0] || {};
+    const pay = await scoped(req).query<{ same_day_funding_opt_in: boolean | null }>(
+      'SELECT same_day_funding_opt_in FROM driver_payment_accounts WHERE driver_id = $1',
+      [req.user.driverId]
+    );
+    sameDayFundingOptIn = pay.rows[0]?.same_day_funding_opt_in ?? null;
   } else if (req.user.role === 'shipper' && req.user.shipperId) {
     const shp = await scoped(req).query('SELECT * FROM shipper_profiles WHERE id = $1', [req.user.shipperId]);
     profileData = shp.rows[0] || {};
@@ -472,7 +476,8 @@ apiRouter.get('/auth/me', authenticate, async (req: AuthenticatedRequest, res) =
 
   res.json({
     user: req.user,
-    profile: profileData
+    profile: profileData,
+    same_day_funding_opt_in: sameDayFundingOptIn
   });
 });
 
@@ -1074,7 +1079,6 @@ apiRouter.patch('/bookings/:id/complete', authenticate, async (req: Authenticate
       const cfg: Record<string, number> = {};
       cfgRes.rows.forEach(r => cfg[r.key] = parseFloat(r.value));
 
-      const feePct = cfg['fee_pct'] ?? 0.07;
       const factorPct = cfg['factor_pct'] ?? 0.03;
 
       // Check if driver opted into same-day funding
@@ -1085,9 +1089,8 @@ apiRouter.patch('/bookings/:id/complete', authenticate, async (req: Authenticate
       const miles = parseFloat(load.miles);
       const ratePerMile = parseFloat(load.rate_per_mile);
       const grossAmount = miles * ratePerMile;
-      const feeAmount = grossAmount * feePct;
       const factorCost = factored ? grossAmount * factorPct : 0;
-      const netAmount = grossAmount - feeAmount - factorCost;
+      const netAmount = grossAmount - factorCost;
 
       const settlementId = newId('STL');
       const settledAt = new Date().toISOString();
@@ -1095,12 +1098,12 @@ apiRouter.patch('/bookings/:id/complete', authenticate, async (req: Authenticate
       await tx.query(`
         INSERT INTO settlements (
           id, booking_id, load_id, miles, rate_per_mile,
-          gross_amount, fee_amount, fee_pct_applied, factor_cost, factored, net_amount, settled_at
+          gross_amount, factor_cost, factored, net_amount, settled_at
         )
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
       `, [
         settlementId, booking.id, load.id, miles, ratePerMile,
-        grossAmount, feeAmount, feePct, factorCost, factored, netAmount, settledAt
+        grossAmount, factorCost, factored, netAmount, settledAt
       ]);
 
       await tx.query('UPDATE bookings SET status = \'completed\', delivered_at = $1 WHERE id = $2', [settledAt, booking.id]);

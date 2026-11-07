@@ -230,7 +230,6 @@ export interface SettlementTotals {
 }
 
 export interface PlatformConfig {
-  fee_pct: number;
   factor_pct: number;
   broker_comparison_pct: number;
   reserve_pct?: number;
