@@ -6,28 +6,32 @@ import type { PlatformConfig } from '../types/api';
  * the post-load calculator, and the homepage receipt cannot drift from it.
  */
 export const DEFAULT_PLATFORM_CONFIG: PlatformConfig = {
-  fee_pct: 0.07,
   factor_pct: 0.03,
   broker_comparison_pct: 0.20
 };
 
 export function withConfigDefaults(config?: Partial<PlatformConfig> | null): PlatformConfig {
   return {
-    fee_pct: config?.fee_pct ?? DEFAULT_PLATFORM_CONFIG.fee_pct,
     factor_pct: config?.factor_pct ?? DEFAULT_PLATFORM_CONFIG.factor_pct,
     broker_comparison_pct: config?.broker_comparison_pct ?? DEFAULT_PLATFORM_CONFIG.broker_comparison_pct
   };
 }
 
+/**
+ * Same rule as PATCH /bookings/:id/complete: the driver's stored preference
+ * decides, and the load's offer only applies when there is no preference.
+ */
+export function isFactored(offered: boolean | null | undefined, driverOptIn?: boolean | null): boolean {
+  return Boolean(driverOptIn ?? offered);
+}
+
 export interface SettlementPreview {
   miles: number;
   ratePerMile: number;
-  feePct: number;
   factorPct: number;
   brokerPct: number;
   factored: boolean;
   gross: number;
-  fee: number;
   factor: number;
   net: number;
   brokerKeep: number;
@@ -45,19 +49,16 @@ export function settlementPreview(
   const rate = Number(ratePerMile) || 0;
   const factored = Boolean(opts?.factored);
   const gross = m * rate;
-  const fee = gross * cfg.fee_pct;
   const factor = factored ? gross * cfg.factor_pct : 0;
-  const net = gross - fee - factor;
+  const net = gross - factor;
   const brokerKeep = gross * cfg.broker_comparison_pct;
   return {
     miles: m,
     ratePerMile: rate,
-    feePct: cfg.fee_pct,
     factorPct: cfg.factor_pct,
     brokerPct: cfg.broker_comparison_pct,
     factored,
     gross,
-    fee,
     factor,
     net,
     brokerKeep,

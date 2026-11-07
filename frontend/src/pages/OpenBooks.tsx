@@ -36,7 +36,8 @@ export const OpenBooks: React.FC = () => {
 
   const donutSegs = [
     { label: 'Paid to carriers', val: net, color: '#0F5132' },
-    { label: 'Platform fee', val: fee, color: '#E3A008' },
+    // Only settlements from before the fee was removed carry one.
+    ...(fee > 0 ? [{ label: 'Past platform fees', val: fee, color: '#E3A008' }] : []),
     { label: 'Same-day funding', val: factor, color: '#8C2F1B' }
   ];
 
@@ -44,6 +45,7 @@ export const OpenBooks: React.FC = () => {
 
   // Last 10 settlements rate/mile for Bar Chart
   const last10 = settlements.slice(0, 10).reverse();
+  const hasPastFees = settlements.some(s => Number(s.fee_amount) > 0);
   const maxRate = Math.max(3.5, ...last10.map(s => Number(s.rate_per_mile)));
 
   return (
@@ -187,20 +189,20 @@ export const OpenBooks: React.FC = () => {
                 <th>Route</th>
                 <th>Miles</th>
                 <th>Rate / mi</th>
-                <th>Platform Fee</th>
+                {hasPastFees && <th>Past Platform Fee</th>}
                 <th>Net to Carrier</th>
               </tr>
             </thead>
             <tbody>
               {isLoading ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-8 font-mono text-[#5B6168]">
+                  <td colSpan={hasPastFees ? 5 : 4} className="text-center py-8 font-mono text-[#5B6168]">
                     Loading public settlement ledger...
                   </td>
                 </tr>
               ) : settlements.length === 0 ? (
                 <tr>
-                  <td colSpan={5} className="text-center py-8 font-mono text-[#5B6168]">
+                  <td colSpan={hasPastFees ? 5 : 4} className="text-center py-8 font-mono text-[#5B6168]">
                     No settlements recorded yet.
                   </td>
                 </tr>
@@ -214,7 +216,7 @@ export const OpenBooks: React.FC = () => {
                       </td>
                       <td>{Number(s.miles).toLocaleString()}</td>
                       <td>${Number(s.rate_per_mile).toFixed(2)}</td>
-                      <td className="text-[#8C2F1B] font-bold">${Number(s.fee_amount).toFixed(2)}</td>
+                      {hasPastFees && <td className="text-[#8C2F1B] font-bold">${Number(s.fee_amount).toFixed(2)}</td>}
                       <td className="text-[#0F5132] font-black text-sm">
                         ${Number(s.net_amount).toFixed(2)}
                         {s.factored && (

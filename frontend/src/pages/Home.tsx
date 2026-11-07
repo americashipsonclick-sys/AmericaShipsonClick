@@ -58,7 +58,6 @@ export const Home: React.FC<HomeProps> = ({ currentUser, onOpenAuth, setActiveTa
   const netPaidCount = totals?.net ?? 0;
 
   const sample = settlementPreview(780, 2.15, config);
-  const feePctLabel = pctLabel(sample.feePct);
   const brokerPctLabel = pctLabel(sample.brokerPct);
 
   return (
@@ -78,7 +77,7 @@ export const Home: React.FC<HomeProps> = ({ currentUser, onOpenAuth, setActiveTa
               JUST <span className="text-[#0F5132]">FREIGHT.</span>
             </h1>
             <p className="max-w-xl text-lg leading-snug border-l-4 border-[#14171A] pl-4 italic opacity-85 mb-8">
-              The first trucking platform with a public settlement ledger. We take {feePctLabel}. Shippers pay less, drivers make more. Everyone sees the math.
+              The first trucking platform with a public settlement ledger. No platform fee. Shippers pay less, drivers make more. Everyone sees the math.
             </p>
 
             <div className="flex flex-col items-start gap-3 mb-10">
@@ -148,7 +147,7 @@ export const Home: React.FC<HomeProps> = ({ currentUser, onOpenAuth, setActiveTa
               </div>
               <div className="flex-1 bg-[#0F5132] text-[#F0EAD8] p-3.5 border-2 border-[#14171A]">
                 <div className="text-[10px] font-mono font-bold uppercase opacity-80">Our Platform</div>
-                <div className="text-2xl font-mono font-bold">{feePctLabel} FLAT</div>
+                <div className="text-2xl font-mono font-bold">NO FEE</div>
               </div>
             </div>
           </div>
@@ -203,10 +202,12 @@ export const Home: React.FC<HomeProps> = ({ currentUser, onOpenAuth, setActiveTa
                   <span>GROSS RATE:</span>
                   <span className="font-bold">{usd(Number(topSettlement.gross_amount || 0))}</span>
                 </div>
-                <div className="flex justify-between border-b border-dashed border-[#14171A]/20 py-1 text-[#8C2F1B]">
-                  <span>PLATFORM FEE ({pctLabel(Number(topSettlement.fee_pct_applied) || sample.feePct)}):</span>
-                  <span>&minus; {usd(Number(topSettlement.fee_amount || 0))}</span>
-                </div>
+                {Number(topSettlement.fee_amount) > 0 && (
+                  <div className="flex justify-between border-b border-dashed border-[#14171A]/20 py-1 text-[#8C2F1B]">
+                    <span>PAST PLATFORM FEE ({pctLabel(Number(topSettlement.fee_pct_applied))}):</span>
+                    <span>&minus; {usd(Number(topSettlement.fee_amount))}</span>
+                  </div>
+                )}
 
                 <div className="pt-4">
                   <div className="flex justify-between items-end">
@@ -254,7 +255,7 @@ export const Home: React.FC<HomeProps> = ({ currentUser, onOpenAuth, setActiveTa
             <span className="eyebrow block mb-1">The Financial Math</span>
             <h2 className="text-3xl sm:text-4xl mb-3">Same load. Two ways to get paid.</h2>
             <p className="text-[#5B6168] font-sans text-xs sm:text-sm">
-              A dry van load: Dallas, TX to Atlanta, GA. 780 miles at $2.15/mile. The {feePctLabel} fee is the platform cut.
+              A dry van load: Dallas, TX to Atlanta, GA. 780 miles at $2.15/mile. The platform takes no cut.
             </p>
           </div>
 
@@ -284,10 +285,6 @@ export const Home: React.FC<HomeProps> = ({ currentUser, onOpenAuth, setActiveTa
               <div className="receipt-line">
                 <span>Shipper pays</span>
                 <span>{usd(sample.gross)}</span>
-              </div>
-              <div className="receipt-line">
-                <span>Platform fee ({feePctLabel})</span>
-                <span className="text-[#8C2F1B]">&minus;{usd(sample.fee)}</span>
               </div>
               <div className="receipt-line font-bold text-[#0F5132]">
                 <span>Posted to Open Books</span>

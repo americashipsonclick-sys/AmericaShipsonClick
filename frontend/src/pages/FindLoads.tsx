@@ -5,7 +5,7 @@ import { LoadDetail } from '../components/LoadDetail';
 import { api } from '../lib/api';
 import { appointment, equipmentLabel, loadTypeLabel, shortDay, timeAgo } from '../lib/loadFormat';
 import { Load, User } from '../types/api';
-import { pctLabel, settlementPreview, usd, withConfigDefaults } from '../lib/settlementPreview';
+import { isFactored, settlementPreview, usd } from '../lib/settlementPreview';
 
 interface FindLoadsProps {
   currentUser: User | null;
@@ -28,6 +28,14 @@ export const FindLoads: React.FC<FindLoadsProps> = ({ currentUser, onOpenAuth, o
     queryKey: ['config'],
     queryFn: () => api.getConfig()
   });
+
+  // The preference settlement uses, so each load's pay shows what this driver is paid
+  const { data: me } = useQuery({
+    queryKey: ['me', currentUser?.id],
+    queryFn: () => api.getMe(),
+    enabled: currentUser?.role === 'driver'
+  });
+  const driverOptIn = me?.same_day_funding_opt_in;
 
   const { data: catalog } = useQuery({
     queryKey: ['rates'],
@@ -70,7 +78,7 @@ export const FindLoads: React.FC<FindLoadsProps> = ({ currentUser, onOpenAuth, o
         <span className="eyebrow block mb-1">Find Freight</span>
         <h2 className="text-3xl sm:text-4xl mb-2">Available Load Board</h2>
         <p className="text-[#5B6168] font-sans text-xs sm:text-sm mb-8">
-          Open loads plot on the map at the pickup the shipper dropped. Tap a mile pin to see the lane, or open a load for the dock, the photos and your pay: gross minus the {pctLabel(withConfigDefaults(config).fee_pct)} platform fee and optional same-day factor, the same math Open Books publishes.
+          Open loads plot on the map at the pickup the shipper dropped. Tap a mile pin to see the lane, or open a load for the dock, the photos and your pay: gross minus the optional same-day factor, the same math Open Books publishes.
         </p>
 
         {/* Tactile Filter Bar */}
@@ -169,7 +177,7 @@ export const FindLoads: React.FC<FindLoadsProps> = ({ currentUser, onOpenAuth, o
           <div className="space-y-4">
             {loads.map((load) => {
               const preview = settlementPreview(load.miles, load.rate_per_mile, config, {
-                factored: load.same_day_funding_offered
+                factored: isFactored(load.same_day_funding_offered, driverOptIn)
               });
               const focused = focusedLoadId === load.id;
               const pickupWindow = appointment(load.pickup_appt_start, load.pickup_appt_end);
@@ -239,6 +247,7 @@ export const FindLoads: React.FC<FindLoadsProps> = ({ currentUser, onOpenAuth, o
           <LoadDetail
             load={selectedLoad}
             viewer="carrier"
+            driverOptIn={driverOptIn}
             onClose={() => setSelectedLoad(null)}
             onBooked={(booking) => {
               setSelectedLoad(null);

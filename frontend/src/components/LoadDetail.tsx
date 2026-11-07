@@ -12,13 +12,15 @@ import {
   timeAgo
 } from '../lib/loadFormat';
 import { MAX_LOAD_PHOTOS, PHOTO_ACCEPT, shrinkPhoto } from '../lib/loadPhotos';
-import { pctLabel, settlementPreview, usd } from '../lib/settlementPreview';
+import { isFactored, pctLabel, settlementPreview, usd } from '../lib/settlementPreview';
 import type { Booking, Load, LoadPhoto } from '../types/api';
 
 interface LoadDetailProps {
   load: Load;
   /** A carrier can book from here; the shipper who posted it manages its photos. */
   viewer: 'carrier' | 'owner';
+  /** The signed-in driver's same-day preference, which decides the factor at settlement. */
+  driverOptIn?: boolean | null;
   onClose: () => void;
   onBooked?: (booking: Booking) => void;
 }
@@ -144,7 +146,7 @@ const AddPhotoTile: React.FC<{ loadId: string }> = ({ loadId }) => {
   );
 };
 
-export const LoadDetail: React.FC<LoadDetailProps> = ({ load: listed, viewer, onClose, onBooked }) => {
+export const LoadDetail: React.FC<LoadDetailProps> = ({ load: listed, viewer, driverOptIn, onClose, onBooked }) => {
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState(false);
   const [booked, setBooked] = useState(false);
@@ -186,7 +188,7 @@ export const LoadDetail: React.FC<LoadDetailProps> = ({ load: listed, viewer, on
   }, [onClose]);
 
   const preview = settlementPreview(load.miles, load.rate_per_mile, config, {
-    factored: load.same_day_funding_offered
+    factored: isFactored(load.same_day_funding_offered, viewer === 'carrier' ? driverOptIn : null)
   });
   const originLine = `${load.origin_city}, ${load.origin_state}${load.origin_zip ? ` ${load.origin_zip}` : ''}`;
   const destLine = `${load.dest_city}, ${load.dest_state}${load.dest_zip ? ` ${load.dest_zip}` : ''}`;
@@ -321,10 +323,6 @@ export const LoadDetail: React.FC<LoadDetailProps> = ({ load: listed, viewer, on
             <div className="flex justify-between gap-3">
               <span>Total gross</span>
               <span className="font-bold">{usd(preview.gross)}</span>
-            </div>
-            <div className="flex justify-between gap-3">
-              <span>Platform fee ({pctLabel(preview.feePct)})</span>
-              <span>&minus;{usd(preview.fee)}</span>
             </div>
             {preview.factored && (
               <div className="flex justify-between gap-3 text-[#5B6168]">

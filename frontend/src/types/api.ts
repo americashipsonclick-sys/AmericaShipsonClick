@@ -17,10 +17,8 @@ export type LoadStatus = 'open' | 'booked' | 'in_transit' | 'delivered' | 'cance
 export type BookingStatus = 'active' | 'completed' | 'cancelled';
 
 export interface PlatformConfig {
-  fee_pct: number;
   factor_pct: number;
   broker_comparison_pct: number;
-  quote_gross_pct?: number;
 }
 
 export interface RateCard {
@@ -50,7 +48,6 @@ export interface AccessorialFee {
 export interface RateCatalog {
   cards: RateCard[];
   accessorials: AccessorialFee[];
-  quote_gross_pct: number;
   default_demand_multiplier: number;
 }
 
@@ -75,8 +72,6 @@ export interface QuoteBreakdown {
   express_surcharge_pct: number;
   after_demand: number;
   after_express: number;
-  quote_gross_pct: number;
-  gross_markup: number;
   quoted_total: number;
   quoted_rate_per_mile: number;
 }

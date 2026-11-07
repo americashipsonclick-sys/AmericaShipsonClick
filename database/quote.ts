@@ -1,7 +1,6 @@
 /**
  * Equipment quote math. Rates come from `equipment_rate_cards`; this module
- * only applies them. The 7% gross markup is the shipper quote adder — it is
- * not the Open Books platform fee (`platform_config.fee_pct`).
+ * only applies them.
  */
 
 export const EQUIPMENT_KEYS = [
@@ -51,7 +50,6 @@ export interface QuoteParams {
   demand_multiplier: number;
   express: boolean;
   accessorials: QuoteAccessorial[];
-  quote_gross_pct: number;
 }
 
 export interface QuoteBreakdown {
@@ -75,8 +73,6 @@ export interface QuoteBreakdown {
   express_surcharge_pct: number;
   after_demand: number;
   after_express: number;
-  quote_gross_pct: number;
-  gross_markup: number;
   quoted_total: number;
   quoted_rate_per_mile: number;
 }
@@ -98,7 +94,6 @@ export function computeQuote(card: RateCard, params: QuoteParams): QuoteBreakdow
   const miles = Math.max(0, num(params.miles));
   const deadheadMiles = Math.max(0, num(params.deadhead_miles));
   const demand = Math.max(0.01, num(params.demand_multiplier, 1));
-  const grossPct = Math.max(0, num(params.quote_gross_pct));
 
   const shortUnder = card.short_haul_under_miles == null ? null : num(card.short_haul_under_miles);
   const shortHaul = shortUnder != null && miles > 0 && miles < shortUnder;
@@ -133,8 +128,7 @@ export function computeQuote(card: RateCard, params: QuoteParams): QuoteBreakdow
   const afterDemand = money(preMult * demand);
   const expressPct = params.express ? Math.max(0, num(card.express_surcharge_pct)) : 0;
   const afterExpress = money(afterDemand * (1 + expressPct));
-  const grossMarkup = money(afterExpress * grossPct);
-  const quotedTotal = money(Math.max(afterExpress + grossMarkup, floor));
+  const quotedTotal = money(Math.max(afterExpress, floor));
   const quotedRpm = miles > 0 ? rpm(quotedTotal / miles) : 0;
 
   return {
@@ -158,8 +152,6 @@ export function computeQuote(card: RateCard, params: QuoteParams): QuoteBreakdow
     express_surcharge_pct: expressPct,
     after_demand: afterDemand,
     after_express: afterExpress,
-    quote_gross_pct: grossPct,
-    gross_markup: grossMarkup,
     quoted_total: quotedTotal,
     quoted_rate_per_mile: quotedRpm
   };

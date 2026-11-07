@@ -1,8 +1,5 @@
 import React from 'react';
-import { useQuery } from '@tanstack/react-query';
-import { api } from '../lib/api';
 import { canSeeTab, followTabLink } from '../lib/routes';
-import { pctLabel, withConfigDefaults } from '../lib/settlementPreview';
 import { User } from '../types/api';
 
 interface FooterProps {
@@ -11,12 +8,6 @@ interface FooterProps {
 }
 
 export const Footer: React.FC<FooterProps> = ({ setActiveTab, currentUser }) => {
-  const { data: config } = useQuery({
-    queryKey: ['config'],
-    queryFn: () => api.getConfig()
-  });
-  const feePct = withConfigDefaults(config).fee_pct;
-
   return (
     <footer className="bg-[#14171A] text-[#F0EAD8] py-12 text-[0.85rem] border-t-4 border-[#14171A]">
       <div className="max-w-295 mx-auto px-6">
@@ -59,7 +50,7 @@ export const Footer: React.FC<FooterProps> = ({ setActiveTab, currentUser }) => 
               Fee Guarantee
             </h4>
             <ul className="list-none p-0 m-0 space-y-1.5 font-mono text-xs">
-              <li className="text-[#E3A008] font-bold">Platform fee: {pctLabel(feePct)} flat</li>
+              <li className="text-[#E3A008] font-bold">No platform fee</li>
               <li className="text-[#F0EAD8]/80">No hidden broker spread</li>
               <li className="text-[#F0EAD8]/80">Same-day funding optional (+3%)</li>
             </ul>

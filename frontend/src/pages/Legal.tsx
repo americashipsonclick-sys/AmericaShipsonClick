@@ -1,6 +1,6 @@
 import React from 'react';
 
-const UPDATED = 'September 27, 2026';
+const UPDATED = 'November 7, 2026';
 
 function Section({ heading, children }: { heading: string; children: React.ReactNode }) {
   return (
@@ -46,7 +46,7 @@ export const PrivacyPolicy: React.FC = () => (
     </Section>
     <Section heading="Public on purpose">
       <p>
-        The load board and the settlement ledger are public. A settled load can show the lane, miles, rate, platform fee,
+        The load board and the settlement ledger are public. A settled load can show the lane, miles, rate,
         and carrier net. Shipper billing email and carrier payment details are not part of that public view.
       </p>
     </Section>
@@ -89,9 +89,9 @@ export const TermsOfUse: React.FC = () => (
     </Section>
     <Section heading="Fees">
       <p>
-        The fee shown on the quote before a load is posted or booked is the fee that applies to that load.
-        Same-day funding, when it is offered, is a separate amount shown on the same quote. After settlement, the ledger
-        shows the gross, the fee, and the carrier net for that load.
+        The platform charges no fee on posted or booked loads. Same-day funding, when it is offered, is a separate
+        amount shown on the quote. After settlement, the ledger shows the gross and the carrier net for that load.
+        Loads settled while a platform fee applied keep that fee on their ledger record.
       </p>
     </Section>
     <Section heading="Loads, bookings, and documents">

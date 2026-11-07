@@ -67,7 +67,7 @@ export const SITE_NAME = 'America Ships On Click';
 export const PAGE_META: Record<string, { title: string; description: string; path: string; robots: string }> = {
   home: {
     title: 'America Ships On Click — Freight Load Board & Open Books Ledger',
-    description: 'No-broker freight load board with a public settlement ledger. Shippers post loads, carriers book direct, and the fee is on the books.',
+    description: 'No-broker freight load board with a public settlement ledger. Shippers post loads, carriers book direct, and every settlement is on the books.',
     path: '/',
     robots: 'index,follow'
   },
@@ -79,7 +79,7 @@ export const PAGE_META: Record<string, { title: string; description: string; pat
   },
   books: {
     title: 'Open Books Ledger — America Ships On Click',
-    description: 'Public settlement ledger. Every settled load shows miles, rate, the platform fee, and what the carrier was paid.',
+    description: 'Public settlement ledger. Every settled load shows miles, rate, and what the carrier was paid.',
     path: '/books',
     robots: 'index,follow'
   },
@@ -91,7 +91,7 @@ export const PAGE_META: Record<string, { title: string; description: string; pat
   },
   shipper: {
     title: 'Post a Load — America Ships On Click',
-    description: 'Post a load with a live lane quote. The platform fee is shown before the load goes on the board.',
+    description: 'Post a load with a live lane quote. The full price is shown before the load goes on the board.',
     path: '/post-load',
     robots: 'noindex,nofollow'
   },

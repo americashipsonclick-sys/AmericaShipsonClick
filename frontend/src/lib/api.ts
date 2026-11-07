@@ -163,11 +163,11 @@ export const api = {
     return result;
   },
 
-  async getMe(): Promise<{ user: User; profile: any }> {
+  async getMe(): Promise<{ user: User; profile: any; same_day_funding_opt_in?: boolean | null }> {
     const res = await fetch(`${API_BASE}/auth/me`, {
       headers: getAuthHeaders()
     });
-    return handleResponse<{ user: User; profile: any }>(res);
+    return handleResponse<{ user: User; profile: any; same_day_funding_opt_in?: boolean | null }>(res);
   },
 
   logout() {
