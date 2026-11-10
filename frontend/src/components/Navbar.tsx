@@ -4,6 +4,11 @@ import { api } from '../lib/api';
 import { canSeeTab, followTabLink, pathFor } from '../lib/routes';
 import { User } from '../types/api';
 
+const SIGNED_IN_TABS: Partial<Record<User['role'], string[]>> = {
+  driver: ['loads', 'dashboard', 'books'],
+  shipper: ['shipper', 'dashboard', 'books']
+};
+
 interface NavbarProps {
   activeTab: string;
   setActiveTab: (tab: string) => void;
@@ -30,7 +35,8 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   // Role-limited links (Find Loads, Post Load, Admin) show only to the roles
   // in TAB_ROLES; their paths stay reachable by URL and gate on role there.
-  const navItems = [
+  // A signed-in driver or shipper gets just their working tabs, in this order.
+  const allItems = [
     { id: 'home', label: 'Home' },
     { id: 'loads', label: 'Find Loads' },
     { id: 'books', label: 'Open Books' },
@@ -38,7 +44,11 @@ export const Navbar: React.FC<NavbarProps> = ({
     { id: 'shipper', label: 'Post Load' },
     { id: 'dashboard', label: 'Dashboard' },
     { id: 'admin', label: 'Admin' }
-  ].filter((item) => canSeeTab(item.id, currentUser));
+  ];
+  const workingTabs = currentUser ? SIGNED_IN_TABS[currentUser.role] : undefined;
+  const navItems = workingTabs
+    ? workingTabs.map((id) => allItems.find((item) => item.id === id)!)
+    : allItems.filter((item) => canSeeTab(item.id, currentUser));
 
   return (
     <header className="sticky top-0 z-50 flex flex-col border-b-2 border-[#14171A]">
