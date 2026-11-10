@@ -123,15 +123,14 @@ export function searchUsPlaces(q: string): GeoPlace[] {
   const inState = state ? cities.filter((city) => city.state === state) : cities;
   if (!cityPart) return inState.slice(0, LIMIT).map(cityPlace);
 
-  // Exact name, then name starts with the text, then a later word does ("york" → New York); biggest first in each.
+  // Exact name first, then any name the text starts or a later word starts ("york" → New York), biggest first.
   const exact: City[] = [];
-  const prefix: City[] = [];
-  const word: City[] = [];
+  const partial: City[] = [];
   for (const city of inState) {
     if (city.key === cityPart) exact.push(city);
-    else if (city.key.startsWith(cityPart)) prefix.push(city);
-    else if (city.words.some((w, i) => i > 0 && city.words.slice(i).join(' ').startsWith(cityPart))) word.push(city);
-    if (exact.length + prefix.length >= LIMIT * 4) break;
+    else if (partial.length < LIMIT && (city.key.startsWith(cityPart) || city.words.some((_, i) => i > 0 && city.words.slice(i).join(' ').startsWith(cityPart)))) {
+      partial.push(city);
+    }
   }
-  return [...exact, ...prefix, ...word].slice(0, LIMIT).map(cityPlace);
+  return [...exact, ...partial].slice(0, LIMIT).map(cityPlace);
 }
