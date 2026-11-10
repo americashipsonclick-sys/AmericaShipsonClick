@@ -37,7 +37,9 @@ export const Footer: React.FC<FooterProps> = ({ setActiveTab, currentUser }) => 
               Get Started
             </h4>
             <ul className="list-none p-0 m-0 space-y-2 font-mono text-xs">
-              <li><a href="/drive" onClick={(e) => followTabLink(e, setActiveTab, 'driver')} className="text-[#C4BEB0] hover:text-[#E3A008] hover:underline">Drive With Us</a></li>
+              {(!currentUser || currentUser.role === 'admin') && (
+                <li><a href="/drive" onClick={(e) => followTabLink(e, setActiveTab, 'driver')} className="text-[#C4BEB0] hover:text-[#E3A008] hover:underline">Drive With Us</a></li>
+              )}
               {canSeeTab('shipper', currentUser) && (
                 <li><a href="/post-load" onClick={(e) => followTabLink(e, setActiveTab, 'shipper')} className="text-[#C4BEB0] hover:text-[#E3A008] hover:underline">Post a Load</a></li>
               )}
