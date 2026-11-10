@@ -113,7 +113,7 @@ const PlaceSearch: React.FC<PlaceSearchProps> = ({
         .finally(() => {
           if (!cancelled) setSearching(false);
         });
-    }, 320);
+    }, 150);
 
     return () => {
       cancelled = true;

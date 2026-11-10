@@ -5,6 +5,8 @@
  * proxies these instead of calling them from the SPA.
  */
 
+import { searchUsPlaces } from './usPlaces';
+
 const NOMINATIM = 'https://nominatim.openstreetmap.org';
 const OSRM = 'https://router.project-osrm.org';
 const USER_AGENT = 'AmericaShipsOnClick/1.0 (https://www.americashipsonclick.com; freight lane geocode)';
@@ -29,7 +31,7 @@ export type GeoRoute = {
   geometry: [number, number][];
 };
 
-const STATE_BY_NAME: Record<string, string> = {
+export const STATE_BY_NAME: Record<string, string> = {
   alabama: 'AL', alaska: 'AK', arizona: 'AZ', arkansas: 'AR', california: 'CA',
   colorado: 'CO', connecticut: 'CT', delaware: 'DE', 'district of columbia': 'DC',
   florida: 'FL', georgia: 'GA', hawaii: 'HI', idaho: 'ID', illinois: 'IL',
@@ -208,17 +210,25 @@ async function nominatimSearch(params: Record<string, string>): Promise<unknown>
 
 export async function searchPlaces(q: string): Promise<GeoPlace[]> {
   const trimmed = q.trim();
-  if (looksLikeZip(trimmed)) {
-    const zip = trimmed.slice(0, 5);
-    const structured = collectPlaces(
-      await nominatimSearch({ postalcode: zip, country: 'us' }),
-      true
-    );
-    if (structured.length > 0) return structured;
-    return collectPlaces(await nominatimSearch({ q: zip }), true);
-  }
+  const local = searchUsPlaces(trimmed);
+  if (/^\d{3,5}(?:-\d{0,4})?$/.test(trimmed) && local.length > 0) return local;
 
-  return collectPlaces(await nominatimSearch({ q: trimmed }), false);
+  // Cities come from the built-in list as you type; a house number, a street,
+  // or a place too small for it still goes to Nominatim.
+  if (!/\d/.test(trimmed) && local.length >= 3) return local;
+
+  let remote: GeoPlace[] = [];
+  try {
+    if (looksLikeZip(trimmed)) {
+      remote = collectPlaces(await nominatimSearch({ postalcode: trimmed.slice(0, 5), country: 'us' }), true);
+    } else {
+      remote = collectPlaces(await nominatimSearch({ q: trimmed }), false);
+    }
+  } catch (err) {
+    if (local.length === 0) throw err;
+  }
+  const seen = new Set(local.map((place) => place.label.toLowerCase()));
+  return [...local, ...remote.filter((place) => !seen.has(place.label.toLowerCase()))].slice(0, 8);
 }
 
 async function reverseAtZoom(lat: number, lng: number, zoom: number): Promise<GeoPlace | null> {

@@ -51,6 +51,83 @@ const EMPTY_DETAILS = {
   payment_terms: ''
 };
 
+const NO_DOCK = 'None';
+
+/** A dock is either stated as none or given as a number; blank leaves it off the load. */
+const DockField: React.FC<{ id: string; value: string; onChange: (value: string) => void }> = ({ id, value, onChange }) => {
+  const [mode, setMode] = useState<'' | 'none' | 'number'>(value === NO_DOCK ? 'none' : value ? 'number' : '');
+
+  const pickMode = (next: typeof mode) => {
+    setMode(next);
+    onChange(next === 'none' ? NO_DOCK : '');
+  };
+
+  return (
+    <div>
+      <label htmlFor={id} className={LABEL_CLASS}>Dock</label>
+      <div className="grid grid-cols-2 gap-3">
+        <select id={id} value={mode} onChange={(e) => pickMode(e.target.value as typeof mode)} className={INPUT_CLASS}>
+          <option value="">Not stated</option>
+          <option value="none">None</option>
+          <option value="number">Dock #</option>
+        </select>
+        {mode === 'number' && (
+          <input
+            type="text"
+            inputMode="numeric"
+            maxLength={6}
+            aria-label="Dock number"
+            placeholder="e.g. 12"
+            value={value}
+            onChange={(e) => onChange(e.target.value.replace(/\D/g, ''))}
+            className={INPUT_CLASS}
+          />
+        )}
+      </div>
+    </div>
+  );
+};
+
+const PARKING_CHOICES = [
+  'On-site truck parking',
+  'Street parking',
+  'Truck stop nearby',
+  'No parking — arrive on time'
+];
+const OTHER_PARKING = 'other';
+
+/** Parking is one of the common setups, or written out under Other; blank leaves it off the load. */
+const ParkingField: React.FC<{ id: string; label: string; value: string; onChange: (value: string) => void }> = ({ id, label, value, onChange }) => {
+  const [choice, setChoice] = useState(PARKING_CHOICES.includes(value) || !value ? value : OTHER_PARKING);
+
+  const pick = (next: string) => {
+    setChoice(next);
+    onChange(next === OTHER_PARKING ? '' : next);
+  };
+
+  return (
+    <div>
+      <label htmlFor={id} className={LABEL_CLASS}>{label}</label>
+      <select id={id} value={choice} onChange={(e) => pick(e.target.value)} className={INPUT_CLASS}>
+        <option value="">Not stated</option>
+        {PARKING_CHOICES.map((option) => <option key={option} value={option}>{option}</option>)}
+        <option value={OTHER_PARKING}>Other (describe)</option>
+      </select>
+      {choice === OTHER_PARKING && (
+        <textarea
+          rows={2}
+          maxLength={300}
+          aria-label={`${label} details`}
+          placeholder="Where drivers should park or stage"
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          className={`${INPUT_CLASS} mt-2`}
+        />
+      )}
+    </div>
+  );
+};
+
 export const PostLoad: React.FC<PostLoadProps> = ({ currentUser, onOpenAuth, setActiveTab }) => {
   const queryClient = useQueryClient();
 
@@ -541,14 +618,8 @@ export const PostLoad: React.FC<PostLoadProps> = ({ currentUser, onOpenAuth, set
                     <input id="pickup-to" type="time" value={details.pickup_appt_end} onChange={setDetail('pickup_appt_end')} className={INPUT_CLASS} />
                   </div>
                 </div>
-                <div>
-                  <label htmlFor="pickup-dock" className={LABEL_CLASS}>Dock</label>
-                  <input id="pickup-dock" type="text" maxLength={60} value={details.pickup_dock} onChange={setDetail('pickup_dock')} className={INPUT_CLASS} />
-                </div>
-                <div>
-                  <label htmlFor="pickup-parking" className={LABEL_CLASS}>Parking / staging</label>
-                  <textarea id="pickup-parking" rows={2} maxLength={300} value={details.pickup_parking} onChange={setDetail('pickup_parking')} className={INPUT_CLASS} />
-                </div>
+                <DockField id="pickup-dock" value={details.pickup_dock} onChange={(v) => setDetails((prev) => ({ ...prev, pickup_dock: v }))} />
+                <ParkingField id="pickup-parking" label="Parking / staging" value={details.pickup_parking} onChange={(v) => setDetails((prev) => ({ ...prev, pickup_parking: v }))} />
                 <div>
                   <label htmlFor="pickup-checkin" className={LABEL_CLASS}>Check-in</label>
                   <textarea id="pickup-checkin" rows={2} maxLength={300} value={details.pickup_checkin} onChange={setDetail('pickup_checkin')} className={INPUT_CLASS} />
@@ -571,14 +642,8 @@ export const PostLoad: React.FC<PostLoadProps> = ({ currentUser, onOpenAuth, set
                     <input id="delivery-to" type="time" value={details.delivery_appt_end} onChange={setDetail('delivery_appt_end')} className={INPUT_CLASS} />
                   </div>
                 </div>
-                <div>
-                  <label htmlFor="delivery-dock" className={LABEL_CLASS}>Dock</label>
-                  <input id="delivery-dock" type="text" maxLength={60} value={details.delivery_dock} onChange={setDetail('delivery_dock')} className={INPUT_CLASS} />
-                </div>
-                <div>
-                  <label htmlFor="delivery-parking" className={LABEL_CLASS}>Parking</label>
-                  <textarea id="delivery-parking" rows={2} maxLength={300} value={details.delivery_parking} onChange={setDetail('delivery_parking')} className={INPUT_CLASS} />
-                </div>
+                <DockField id="delivery-dock" value={details.delivery_dock} onChange={(v) => setDetails((prev) => ({ ...prev, delivery_dock: v }))} />
+                <ParkingField id="delivery-parking" label="Parking" value={details.delivery_parking} onChange={(v) => setDetails((prev) => ({ ...prev, delivery_parking: v }))} />
                 <div>
                   <label htmlFor="receiving-hours" className={LABEL_CLASS}>Receiving hours</label>
                   <input id="receiving-hours" type="text" maxLength={120} value={details.receiving_hours} onChange={setDetail('receiving_hours')} placeholder="Mon–Fri 06:00–15:00" className={INPUT_CLASS} />
