@@ -5,4 +5,4 @@ Disallow: /dashboard
 Disallow: /api/
 Disallow: /uploads/
 
-Sitemap: https://www.americashipsonclick.com/sitemap.xml
+Sitemap: https://americashipsonclick.com/sitemap.xml

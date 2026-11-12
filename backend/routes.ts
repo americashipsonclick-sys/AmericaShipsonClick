@@ -1401,16 +1401,27 @@ apiRouter.get('/bookings/:id/tracking', authenticate, async (req: AuthenticatedR
 // -------------------------------------------------------------
 // 5. SETTLEMENTS ENDPOINTS (OPEN BOOKS PUBLIC LEDGER)
 // -------------------------------------------------------------
+const ledgerPagingSchema = z.object({
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+  page: z.coerce.number().int().min(1).max(100000).default(1)
+});
+
 apiRouter.get('/settlements', async (req, res) => {
   try {
-    const { limit = '50', page = '1' } = req.query;
-    const l = parseInt(limit as string, 10);
-    const offset = (parseInt(page as string, 10) - 1) * l;
+    // Public and unauthenticated, so paging is validated and capped here: a
+    // bad value is the caller's mistake (400), not a database error (500).
+    const paging = ledgerPagingSchema.safeParse(req.query);
+    if (!paging.success) {
+      res.status(400).json({ error: 'limit must be 1-200 and page must be 1 or more.' });
+      return;
+    }
+    const { limit, page } = paging.data;
 
-    const rows = await db.as({ role: 'anon' }).query('SELECT * FROM public_ledger_view LIMIT $1 OFFSET $2', [l, offset]);
+    const rows = await db.as({ role: 'anon' }).query('SELECT * FROM public_ledger_view LIMIT $1 OFFSET $2', [limit, (page - 1) * limit]);
     res.json({ settlements: rows.rows });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error('[API] Ledger query failed:', err);
+    res.status(500).json({ error: 'Could not load the ledger.' });
   }
 });
 
@@ -1427,7 +1438,8 @@ apiRouter.get('/settlements/aggregate', async (req, res) => {
       net: parseFloat(String(totals.net || '0'))
     });
   } catch (err: any) {
-    res.status(500).json({ error: err.message });
+    console.error('[API] Ledger totals query failed:', err);
+    res.status(500).json({ error: 'Could not load the ledger totals.' });
   }
 });
 
