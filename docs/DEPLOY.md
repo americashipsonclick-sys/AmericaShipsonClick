@@ -141,8 +141,8 @@ domain at once. Render issues the TLS certificate once the records resolve.
 After cutover:
 
 ```bash
-curl -s -o /dev/null -w '%{http_code}\n' https://www.americashipsonclick.com/loads
-curl -s https://www.americashipsonclick.com/api/config
+curl -s -o /dev/null -w '%{http_code}\n' https://americashipsonclick.com/loads
+curl -s https://americashipsonclick.com/api/config
 ```
 
 ---
