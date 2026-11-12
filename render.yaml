@@ -50,6 +50,12 @@ services:
       - key: TRUST_PROXY
         value: "true"
 
+      # Render fronts every service with Cloudflare, which overwrites this
+      # header with the address it saw. X-Forwarded-For's first entry is the
+      # caller's own text and must not be used for rate limits.
+      - key: CLIENT_IP_HEADER
+        value: cf-connecting-ip
+
       # Generated once at creation and persisted across deploys. Rotating
       # JWT_SECRET invalidates every issued token.
       - key: JWT_SECRET

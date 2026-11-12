@@ -129,12 +129,11 @@ them, and `localStorage.removeItem()` on success discards the last reference the
 system had. An admin reviewing a carrier has no way to find the CDL they were
 required to upload.
 
-The files also remain fetchable. `/uploads` is served as static files with
-`Content-Disposition: attachment` and a `sandbox` CSP
-([`backend/server.ts:40`](../backend/server.ts)), which stops an uploaded document from executing
-in the app's origin, but there is no authorization check on the path — the only
-thing protecting a driver's licence photo is the 72 bits of randomness in its
-filename.
+The files are served from `/uploads` with `Content-Disposition: attachment` and
+a `sandbox` CSP ([`backend/routes.ts`](../backend/routes.ts), `serveUpload`),
+which stops an uploaded document from executing in the app's origin. The path
+requires a sign-in token and returns a file only to the account that uploaded
+it or to an admin (migration 0028).
 
 Closing this needs three things: document URLs in the onboard schema, an
 `INSERT` into `driver_documents` inside the existing transaction, and an

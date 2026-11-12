@@ -191,7 +191,8 @@ time answers "is this address registered?" for anyone who asks.
 **Throttling.** `app_login_lockout_seconds()` and `app_record_login_attempt()`
 ([`0002_security.sql:284`](../database/migrations/0002_security.sql)) live in the
 database: five failures in fifteen minutes locks the account, a success clears
-the streak, and rows older than seven days are pruned on write. In-process
+the streak, and rows older than seven days are pruned on write. Migration 0028
+scopes the count to the guessing address; see the limits below. In-process
 counters would reset on deploy and would not be shared across instances behind a
 load balancer; a database table survives both. The functions are
 `SECURITY DEFINER` with a pinned `search_path`, so the app role can call them
@@ -275,16 +276,28 @@ week, and a role change does not take effect until the holder signs in again.
 [`backend/server.ts:22`](../backend/server.ts) does not include a CSP on the application HTML,
 because Vite's dev server needs inline scripts.
 
-**Lockout is keyed on email alone**, not on email plus IP. Five deliberate bad
-guesses will lock a known user out of their own account for fifteen minutes,
-which is a cheap denial of service against a named target.
+**A distributed attacker can still lock a named account.** Lockout follows who
+is guessing ([`0028`](../database/migrations/0028_lockout_scope_and_private_uploads.sql)):
+five failures for one email from one address, twenty from one address across
+any emails, and a ceiling of fifty for one email from anywhere. One address can
+no longer lock someone else out, but fifty guesses spread over several addresses
+inside fifteen minutes still can. There is no password reset to recover with.
+
+**The client address is only as good as the proxy configuration.** Rate limits
+and the lockout above use `clientIp()` ([`security.ts`](../backend/security.ts)),
+which reads `CLIENT_IP_HEADER` when set and otherwise the entry `TRUST_PROXY`
+hops from the right of `X-Forwarded-For`. If the hop count is too low, every
+caller shares the proxy's address and one bucket; if `CLIENT_IP_HEADER` names a
+header the edge does not overwrite, callers choose their own address.
 
 **No CSRF tokens and no rate limiting outside login.** The API is
 JWT-in-header rather than cookie-based, so it is not cross-site forgeable today
 — but that is a property of the current client, not an enforced invariant, and
 it would quietly stop being true the day anything moves to a cookie.
 
-**Uploaded documents are served without an authorization check.** Anyone
-holding a `/uploads/doc-...` URL can fetch it; the only protection is that the
-filename carries 72 bits of randomness. See
+**Uploaded documents are readable only by their uploader and admins.**
+`/uploads/doc-...` requires a sign-in token and returns the file only to the
+account that uploaded it or to an admin (`app_get_own_upload`, migration 0028).
+Nobody else has a route to a driver's documents, including a shipper who has
+booked that driver. See
 [ONBOARDING.md](ONBOARDING.md#documents-are-uploaded-verified-and-then-dropped).
