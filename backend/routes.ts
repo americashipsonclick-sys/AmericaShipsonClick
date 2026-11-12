@@ -391,8 +391,10 @@ apiRouter.post('/auth/login', async (req, res) => {
 
     // Throttling lives in the database, so it holds across restarts and across
     // every server instance behind a load balancer.
+    // Scoped to who is guessing (migration 0028): locking on the email alone
+    // let anyone who knew an address keep its owner out.
     const lockRes = await authDb.query<{ seconds: string }>(
-      'SELECT app_login_lockout_seconds($1) AS seconds', [email]
+      'SELECT app_login_lockout_seconds($1, $2) AS seconds', [email, ip]
     );
     const lockedFor = parseInt(lockRes.rows[0]?.seconds ?? '0', 10);
     if (lockedFor > 0) {
@@ -1611,8 +1613,11 @@ async function handleUpload(req: Request, res: Response): Promise<void> {
 export async function serveUpload(req: Request, res: Response): Promise<void> {
   const id = path.parse(req.params.name).name;
   try {
-    const result = await db.as({ role: 'anon' }).query<{ content_type: string; data: Buffer }>(
-      'SELECT content_type, data FROM app_get_upload($1)',
+    // Only the uploader or an admin gets a row back (migration 0028). Someone
+    // else's file answers exactly like a missing one, so the route does not
+    // confirm which ids exist.
+    const result = await db.as(sessionContextFor(req as AuthenticatedRequest)).query<{ content_type: string; data: Buffer }>(
+      'SELECT content_type, data FROM app_get_own_upload($1)',
       [id]
     );
     const file = result.rows[0];
@@ -1622,6 +1627,8 @@ export async function serveUpload(req: Request, res: Response): Promise<void> {
     }
     res.setHeader('Content-Type', file.content_type);
     res.setHeader('Content-Disposition', 'attachment');
+    // The URL carries no identity, so a cached copy would skip the check above.
+    res.setHeader('Cache-Control', 'no-store');
     res.setHeader('Content-Security-Policy', "default-src 'none'; sandbox");
     res.send(Buffer.from(file.data));
   } catch (err) {
@@ -1914,13 +1921,32 @@ apiRouter.get('/admin/directory', authenticate, requireRole('admin'), async (req
 // -------------------------------------------------------------
 // 8. REAL-TIME SSE STREAM ENDPOINT
 // -------------------------------------------------------------
+//
+// Public and long-lived: each subscriber holds a socket and a timer for as long
+// as it likes. Without a ceiling, one script opening connections in a loop
+// takes the whole process down, so both the total and the share any single
+// address may hold are capped.
+const SSE_MAX_CLIENTS = 500;
+const SSE_MAX_PER_IP = 10;
+const sseClientsByIp = new Map<string, number>();
+
 apiRouter.get('/realtime/stream', (req, res) => {
+  const ip = clientIp(req);
+  const held = sseClientsByIp.get(ip) ?? 0;
+  if (sseClients.length >= SSE_MAX_CLIENTS || held >= SSE_MAX_PER_IP) {
+    // A non-200 answer also stops the browser's EventSource from retrying.
+    res.setHeader('Retry-After', '60');
+    res.status(held >= SSE_MAX_PER_IP ? 429 : 503).json({ error: 'Too many live connections. The ledger still loads without the live feed.' });
+    return;
+  }
+
   res.setHeader('Content-Type', 'text/event-stream');
   res.setHeader('Cache-Control', 'no-cache');
   res.setHeader('Connection', 'keep-alive');
   res.flushHeaders();
 
   sseClients.push(res);
+  sseClientsByIp.set(ip, held + 1);
 
   // Send welcome ping
   res.write(`data: ${JSON.stringify({ type: 'connected', message: 'Subscribed to Open Books real-time stream' })}\n\n`);
@@ -1934,5 +1960,8 @@ apiRouter.get('/realtime/stream', (req, res) => {
     clearInterval(heartbeat);
     const idx = sseClients.indexOf(res);
     if (idx !== -1) sseClients.splice(idx, 1);
+    const left = (sseClientsByIp.get(ip) ?? 1) - 1;
+    if (left > 0) sseClientsByIp.set(ip, left);
+    else sseClientsByIp.delete(ip);
   });
 });

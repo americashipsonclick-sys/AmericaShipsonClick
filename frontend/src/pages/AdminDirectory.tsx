@@ -316,7 +316,19 @@ function DriverDetail({ driver }: { driver: AdminDriver }) {
                 <span className={statusClass(doc.review_status)}>{doc.review_status}</span>
                 <span>{when(doc.uploaded_at)}</span>
                 {doc.file_url && (
-                  <a href={doc.file_url} className="text-[#0F5132] underline" target="_blank" rel="noreferrer">Open file</a>
+                  doc.file_url.startsWith('/uploads/') ? (
+                    <button
+                      type="button"
+                      className="text-[#0F5132] underline"
+                      onClick={() => {
+                        api.downloadUpload(doc.file_url, doc.doc_type).catch((err) => window.alert(err.message));
+                      }}
+                    >
+                      Download file
+                    </button>
+                  ) : (
+                    <a href={doc.file_url} className="text-[#0F5132] underline" target="_blank" rel="noreferrer">Open file</a>
+                  )
                 )}
               </li>
             ))}

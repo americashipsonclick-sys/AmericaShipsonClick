@@ -4,6 +4,8 @@ import path from 'path';
 import { createServer as createViteServer } from 'vite';
 import { closeDb, db, initDb, pingDb } from '../database';
 import { apiRouter, serveUpload } from './routes';
+import { authenticate } from './auth';
+import { trustedProxyHops } from './security';
 
 async function startServer() {
   const app = express();
@@ -17,9 +19,13 @@ async function startServer() {
   // fatal: serving requests without a schema just yields 500s on every route.
   const dbInfo = await initDb();
 
-  if (process.env.TRUST_PROXY === 'true') {
-    app.set('trust proxy', 1);
+  // The number of proxies in front of this process, never `true`: trusting
+  // every hop would let a caller name its own address in X-Forwarded-For.
+  const proxyHops = trustedProxyHops();
+  if (proxyHops > 0) {
+    app.set('trust proxy', proxyHops);
   }
+  app.disable('x-powered-by');
 
   // Baseline response headers. In production, an HTTP hop behind the proxy
   // is sent to HTTPS before any page or API response is written.
@@ -48,8 +54,8 @@ async function startServer() {
   });
 
   // Uploaded documents are stored in Postgres (the container disk is wiped on
-  // every deploy) and served back as downloads.
-  app.get('/uploads/:name', serveUpload);
+  // every deploy) and served back as downloads, to the uploader or an admin.
+  app.get('/uploads/:name', authenticate, serveUpload);
 
   // Health check (includes a live database round-trip)
   app.get('/api/health', async (req, res) => {

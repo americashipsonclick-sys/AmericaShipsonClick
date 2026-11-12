@@ -350,6 +350,28 @@ export const api = {
     return handleResponse<{ file_url: string; filename: string }>(res);
   },
 
+  /**
+   * Saves a stored document. /uploads needs the sign-in token, and a plain
+   * link cannot send one, so the file is fetched here and handed to the
+   * browser as a download.
+   */
+  async downloadUpload(fileUrl: string, saveAs: string): Promise<void> {
+    const res = await fetch(fileUrl, { headers: getAuthHeaders() });
+    if (!res.ok) {
+      throw new Error(res.status === 404 ? 'That file is no longer available.' : `Could not open the file (${res.status}).`);
+    }
+    const blob = await res.blob();
+    const ext = fileUrl.match(/\.[a-z0-9]+$/i)?.[0] ?? '';
+    const href = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = href;
+    link.download = `${saveAs}${ext}`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(href), 1000);
+  },
+
   // Admin
   async getAdminDirectory(): Promise<{ drivers: AdminDriver[]; shippers: AdminShipper[] }> {
     const res = await fetch(`${API_BASE}/admin/directory`, {

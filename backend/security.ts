@@ -2,6 +2,7 @@
  * Security helpers shared by the API layer.
  */
 import crypto from 'crypto';
+import { isIP } from 'net';
 import type { Request } from 'express';
 import type { SessionContext } from '../database';
 import type { AuthenticatedRequest } from './auth';
@@ -66,12 +67,40 @@ export function sessionContextFor(req: AuthenticatedRequest): SessionContext {
   };
 }
 
-/** Client address for login throttling; honours a proxy header when configured. */
+/**
+ * How many proxies sit between the internet and this process.
+ *
+ * TRUST_PROXY="true" means one; a number means that many. Express reads the
+ * client address that many entries from the RIGHT of X-Forwarded-For — the
+ * entries our own proxies appended. Anything further left arrived from the
+ * client and is whatever the client typed.
+ */
+export function trustedProxyHops(): number {
+  const raw = (process.env.TRUST_PROXY || '').trim().toLowerCase();
+  if (raw === 'true') return 1;
+  const hops = Number(raw);
+  return Number.isInteger(hops) && hops > 0 && hops <= 10 ? hops : 0;
+}
+
+/**
+ * Client address for rate limits and login throttling.
+ *
+ * The previous version took the FIRST X-Forwarded-For entry, which is the one
+ * part of that header the caller controls: sending a different made-up value
+ * with each request gave every request a fresh rate-limit bucket.
+ *
+ * Behind an edge that stamps the address into its own header and overwrites
+ * whatever the client sent (Cloudflare's CF-Connecting-IP), name that header
+ * in CLIENT_IP_HEADER. It is read only when a proxy is trusted at all, and
+ * only if it holds a single well-formed address. Otherwise this is `req.ip`,
+ * which Express derives from the trusted hop count above.
+ */
 export function clientIp(req: Request): string {
-  if (process.env.TRUST_PROXY === 'true') {
-    const forwarded = req.headers['x-forwarded-for'];
-    const first = Array.isArray(forwarded) ? forwarded[0] : forwarded?.split(',')[0];
-    if (first) return first.trim();
+  const header = (process.env.CLIENT_IP_HEADER || '').trim().toLowerCase();
+  if (header && trustedProxyHops() > 0) {
+    const raw = req.headers[header];
+    const value = (Array.isArray(raw) ? raw[0] : raw)?.trim();
+    if (value && isIP(value)) return value;
   }
-  return req.socket.remoteAddress || 'unknown';
+  return req.ip || req.socket?.remoteAddress || 'unknown';
 }
