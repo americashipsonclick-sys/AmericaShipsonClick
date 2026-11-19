@@ -215,15 +215,13 @@ export const FindLoads: React.FC<FindLoadsProps> = ({ currentUser, onOpenAuth, o
                   </div>
 
                   <div className="min-w-0 font-mono text-xs">
-                    <div className="text-[0.68rem] uppercase tracking-wider text-[#5B6168]">Miles{load.weight_lbs ? ' · Weight' : ''}</div>
-                    <div className="font-bold text-sm text-[#14171A]">{preview.miles.toLocaleString()} mi</div>
-                    {load.weight_lbs && <div className="text-[#5B6168]">{Number(load.weight_lbs).toLocaleString()} lbs</div>}
+                    <div className="text-[0.68rem] uppercase tracking-wider text-[#5B6168]">Rate / mi</div>
+                    <div className="font-bold text-sm text-[#14171A]">${preview.ratePerMile.toFixed(2)}/mi</div>
                   </div>
 
                   <div className="min-w-0 font-mono text-xs">
-                    <div className="text-[0.68rem] uppercase tracking-wider text-[#5B6168]">Gross · $/mi</div>
+                    <div className="text-[0.68rem] uppercase tracking-wider text-[#5B6168]">Gross</div>
                     <div className="font-bold text-base text-[#0F5132]">{usd(preview.gross)}</div>
-                    <div className="text-[#5B6168]">${preview.ratePerMile.toFixed(2)}/mi</div>
                   </div>
 
                   <button
