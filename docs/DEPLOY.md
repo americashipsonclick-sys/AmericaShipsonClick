@@ -108,7 +108,7 @@ Vite is still running. The Blueprint builds with `npm ci && npm run build`.
 Against the `onrender.com` URL:
 
 ```bash
-curl -s https://<service>.onrender.com/api/health
+curl -s https://<service>.onrender.com/api/health/db   # live database round-trip
 curl -s -o /dev/null -w '%{http_code}\n' https://<service>.onrender.com/loads  # expect 200
 ```
 

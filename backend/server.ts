@@ -57,8 +57,22 @@ async function startServer() {
   // every deploy) and served back as downloads, to the uploader or an admin.
   app.get('/uploads/:name', authenticate, serveUpload);
 
-  // Health check (includes a live database round-trip)
-  app.get('/api/health', async (req, res) => {
+  // Liveness check. Deliberately does NOT touch the database: Render's health
+  // checker and uptime monitors poll this every few seconds/minutes, and a
+  // query on each poll keeps the Neon compute awake around the clock, which
+  // used up the free plan's monthly compute allowance and took the site down.
+  // The database was already verified at boot (initDb throws otherwise).
+  app.get('/api/health', (req, res) => {
+    res.json({
+      status: 'ok',
+      service: 'America Ships On Click API',
+      database: { driver: dbInfo.driver }
+    });
+  });
+
+  // Readiness check with a live database round-trip. Call it by hand; never
+  // point a monitor or Render's healthCheckPath at it, for the reason above.
+  app.get('/api/health/db', async (req, res) => {
     const dbReachable = await pingDb();
     res.status(dbReachable ? 200 : 503).json({
       status: dbReachable ? 'ok' : 'degraded',
