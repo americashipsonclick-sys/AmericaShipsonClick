@@ -267,7 +267,7 @@ function DriverDetail({ driver }: { driver: AdminDriver }) {
             value={reason}
             onChange={(e) => setReason(e.target.value)}
             placeholder="Rejection reason (optional)"
-            className="p-2 bg-[#FAFAF7] border border-[#E4DCC4] flex-1 min-w-[12rem]"
+            className="p-2 bg-[#FAFAF7] border border-[#E4DCC4] flex-1 min-w-48"
           />
           <button
             type="button"
