@@ -28,6 +28,8 @@ services:
     # when NODE_ENV=production skips devDependencies.
     buildCommand: npm ci && npm run build
     startCommand: npm start
+    # Must not query the database: Render polls it every few seconds, which
+    # would keep the Neon compute from ever scaling to zero.
     healthCheckPath: /api/health
     autoDeploy: true
     envVars:

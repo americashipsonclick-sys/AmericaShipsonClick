@@ -341,7 +341,8 @@ JWT_SECRET="americashipsonclick_secret_jwt_key_2026"
 
 ### 1. Public & Config
 - `GET /api/config` — Fetches authoritative rates and settings
-- `GET /api/health` — Server health check, including a live database round-trip (503 when the database is unreachable)
+- `GET /api/health` — Liveness check; does not query the database, so monitors polling it let Neon scale to zero
+- `GET /api/health/db` — Readiness check with a live database round-trip (503 when the database is unreachable); for manual checks only, never poll it
 
 ### 2. Authentication
 - `POST /api/auth/signup` — Driver, Shipper, or Admin account creation
